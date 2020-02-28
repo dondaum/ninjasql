@@ -1,0 +1,6 @@
+{
+    "python.pythonPath": "/Users/sebastiandaum/.local/share/virtualenvs/ninjasql-nctksy_v/bin/python",
+    "python.linting.pylintEnabled": false,
+    "python.linting.flake8Enabled": true,
+    "python.linting.enabled": true
+}

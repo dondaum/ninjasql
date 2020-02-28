@@ -49,12 +49,15 @@ class NinjaSql(object):
         Method that shows all columns of a provided dataset
         """
         if self._type == 'csv':
-            data = pd.read_csv(filepath_or_buffer=self._file,
-                               sep=self._seperator,
-                               header=self._header)
-            return data.columns
+            try:
+                data = pd.read_csv(filepath_or_buffer=self._file,
+                                   sep=self._seperator,
+                                   header=self._header)
+                return data.columns
+            except Exception as e:
+                log.info(e)
+                log.error(f"Upps. Check file and location. Error: {e}")
 
 
 if __name__ == "__main__":
-    c = NinjaSql()
-    c.file = "/asds"
+    c = NinjaSql(type="csv", seperator='|')

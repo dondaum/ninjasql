@@ -20,12 +20,15 @@ class FileGenerator(object):
 
     def create(self):
         df = pd.DataFrame(self.df)
+        f_path = os.path.join(FILEPATH, f"{self.name}.{self.type}")
         if self.type == 'csv':
-            f_path = os.path.join(FILEPATH, f"{self.name}.{self.type}")
             df.to_csv(path_or_buf=f_path,
                       index=False,
                       sep=self.seperator,
                       header=self.header)
+        elif self.type == 'json':
+            df.to_json(path_or_buf=f_path,
+                       orient='records')
 
     def add_rows(self, key: dict):
         self.df.append(key)

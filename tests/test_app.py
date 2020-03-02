@@ -46,20 +46,24 @@ class NinjaSqlCsvTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        gen = FileGenerator(type=NinjaSqlCsvTest.testfile['type'],
-                            name=NinjaSqlCsvTest.testfile['name'],
-                            header=True,
-                            seperator='|')
+        cls.gen = FileGenerator(type=NinjaSqlCsvTest.testfile['type'],
+                                name=NinjaSqlCsvTest.testfile['name'],
+                                header=True,
+                                seperator='|')
         faker = Faker()
         for n in range(100):
-            gen.add_rows(
+            cls.gen.add_rows(
                 {'Lat': faker.coordinate(center=74.0, radius=0.10),
                  'Lon': faker.coordinate(center=40.8, radius=0.10),
                  'Txt': faker.sentence(),
                  'Nam': faker.name(),
                  'Add': faker.address(),
                  'Job': faker.job()})
-        gen.create()
+        cls.gen.create()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.gen.rm()
 
     def test_show_columns(self):
         """
@@ -120,20 +124,26 @@ class NinjaSqlJsonTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        gen = FileGenerator(type=NinjaSqlJsonTest.testfile['type'],
-                            name=NinjaSqlJsonTest.testfile['name'],
-                            header=True,
-                            seperator='|')
+        cls.gen = FileGenerator(type=NinjaSqlJsonTest.testfile['type'],
+                                name=NinjaSqlJsonTest.testfile['name'],
+                                header=True,
+                                seperator='|',
+                                orient="split")
         faker = Faker()
         for n in range(100):
-            gen.add_rows(
+            cls.gen.add_rows(
                 {'Lat': faker.coordinate(center=74.0, radius=0.10),
                  'Lon': faker.coordinate(center=40.8, radius=0.10),
                  'Txt': faker.sentence(),
                  'Nam': faker.name(),
                  'Add': faker.address(),
-                 'Job': faker.job()})
-        gen.create()
+                 'Job': faker.job(),
+                 'CreatedAt': faker.date_time()})
+        cls.gen.create()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.gen.rm()
 
     def test_show_columns(self):
         """
@@ -144,7 +154,8 @@ class NinjaSqlJsonTest(unittest.TestCase):
                 FILEPATH,
                 (f"{NinjaSqlJsonTest.testfile['name']}."
                  f"{NinjaSqlJsonTest.testfile['type']}")),
-            type="json"
+            type="json",
+            orient="split"
         )
 
         exp_col = [
@@ -154,6 +165,7 @@ class NinjaSqlJsonTest(unittest.TestCase):
             "Nam",
             "Add",
             "Job",
+            "CreatedAt"
         ]
 
         self.assertEqual(sorted(exp_col), sorted(c.show_columns()))

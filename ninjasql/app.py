@@ -1,6 +1,7 @@
 from pathlib import Path
 import logging
 import pandas as pd
+import traceback
 
 logging.basicConfig(level=logging.INFO,
                     format='[%(asctime)s %(name)s %(levelname)s:%(message)s]')
@@ -22,13 +23,15 @@ class NinjaSql(object):
                  seperator: str = ',',
                  header: int = 0,
                  type: str = None,
-                 columns: list = None
+                 columns: list = None,
+                 orient: str = 'records',
                  ):
         self._file = file
         self._seperator = seperator
         self._header = header
         self._type = type
         self._columns = columns
+        self._orient = orient
 
     @property
     def file(self):
@@ -47,6 +50,12 @@ class NinjaSql(object):
         except Exception as e:
             log.error(f"Please provide a valid path. Error: {e}")
 
+    def _read_data(self):
+        """
+        Method that reads data
+        """
+        pass
+
     def show_columns(self) -> list:
         """
         Method that shows all columns of a provided dataset
@@ -62,16 +71,26 @@ class NinjaSql(object):
                                    header=self._header,
                                    names=self._columns)
                 return data.columns
-            except Exception as e:
-                log.info(e)
-                log.error(f"Upps. Check file and location. Error: {e}")
+            except Exception:
+                track = traceback.format_exc()
+                log.info(track)
+                log.error(f"Upps. Check file and location. Error: {track}")
         elif self._type == 'json':
             try:
-                data = pd.read_json(filepath_or_buffer=self._file)
+                data = pd.read_json(
+                    path_or_buf=self._file,
+                    orient=self._orient)
                 return data.columns
-            except Exception as e:
-                log.info(e)
-                log.error(f"Upps. Check file and location. Error: {e}")
+            except Exception:
+                track = traceback.format_exc()
+                log.info(track)
+                log.error(f"Upps. Check file and location. Error: {track}")
+
+    def get_dtypes(self) -> dict:
+        """
+        Method that get columns datatype as dict
+        """
+        pass
 
     def _is_file(self) -> bool:
         """
@@ -82,4 +101,4 @@ class NinjaSql(object):
 
 
 if __name__ == "__main__":
-    c = NinjaSql(type="csv", seperator='|')
+    c = NinjaSql(type="json", seperator='|')

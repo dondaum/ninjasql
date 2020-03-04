@@ -114,6 +114,31 @@ class NinjaSqlCsvTest(unittest.TestCase):
 
         self.assertEqual(sorted(exp_col), sorted(c.show_columns()))
 
+    def test_get_dtypes(self):
+        """
+        test if data types gets returned as a dict
+        """
+        c = NinjaSql(
+            file=os.path.join(
+                FILEPATH,
+                (f"{NinjaSqlCsvTest.testfile['name']}."
+                 f"{NinjaSqlCsvTest.testfile['type']}")),
+            seperator="|",
+            type="csv"
+        )
+        dtype_key_list = c.get_dtypes().keys()
+
+        exp_col = [
+            "Lat",
+            "Lon",
+            "Txt",
+            "Nam",
+            "Add",
+            "Job",
+        ]
+
+        self.assertEqual(sorted(exp_col), sorted(dtype_key_list))
+
 
 class NinjaSqlJsonTest(unittest.TestCase):
 
@@ -169,6 +194,33 @@ class NinjaSqlJsonTest(unittest.TestCase):
         ]
 
         self.assertEqual(sorted(exp_col), sorted(c.show_columns()))
+
+    def test_get_dtypes(self):
+        """
+        test if columns
+        """
+        c = NinjaSql(
+            file=os.path.join(
+                FILEPATH,
+                (f"{NinjaSqlJsonTest.testfile['name']}."
+                 f"{NinjaSqlJsonTest.testfile['type']}")),
+            type="json",
+            orient="split"
+        )
+
+        dtype_key_list = c.get_dtypes().keys()
+
+        exp_col = [
+            "Lat",
+            "Lon",
+            "Txt",
+            "Nam",
+            "Add",
+            "Job",
+            "CreatedAt"
+        ]
+
+        self.assertEqual(sorted(exp_col), sorted(dtype_key_list))
 
 
 if __name__ == "__main__":

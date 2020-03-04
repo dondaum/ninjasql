@@ -9,6 +9,7 @@ flake8 = "*"
 
 [packages]
 pandas = "*"
+sqlalchemy = "*"
 
 [requires]
 python_version = "3.7"

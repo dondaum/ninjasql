@@ -32,6 +32,7 @@ class NinjaSql(object):
         self._type = type
         self._columns = columns
         self._orient = orient
+        self._data = None
 
     @property
     def file(self):
@@ -50,15 +51,9 @@ class NinjaSql(object):
         except Exception as e:
             log.error(f"Please provide a valid path. Error: {e}")
 
-    def _read_data(self):
+    def _read_data(self) -> None:
         """
-        Method that reads data
-        """
-        pass
-
-    def show_columns(self) -> list:
-        """
-        Method that shows all columns of a provided dataset
+        Method that reads data and save it as a instance variable
         """
         if not self._is_file():
             log.error(f"Can't find the a file. Check file path!")
@@ -66,31 +61,39 @@ class NinjaSql(object):
             if (self._columns and not self._header):
                 self._columns = None
             try:
-                data = pd.read_csv(filepath_or_buffer=self._file,
-                                   sep=self._seperator,
-                                   header=self._header,
-                                   names=self._columns)
-                return data.columns
+                self._data = pd.read_csv(filepath_or_buffer=self._file,
+                                         sep=self._seperator,
+                                         header=self._header,
+                                         names=self._columns)
             except Exception:
                 track = traceback.format_exc()
                 log.info(track)
                 log.error(f"Upps. Check file and location. Error: {track}")
         elif self._type == 'json':
             try:
-                data = pd.read_json(
+                self._data = pd.read_json(
                     path_or_buf=self._file,
                     orient=self._orient)
-                return data.columns
             except Exception:
                 track = traceback.format_exc()
                 log.info(track)
                 log.error(f"Upps. Check file and location. Error: {track}")
 
+    def show_columns(self) -> list:
+        """
+        Method that shows all columns of a provided dataset
+        """
+        if not self._data:
+            self._read_data()
+        return self._data.columns
+
     def get_dtypes(self) -> dict:
         """
         Method that get columns datatype as dict
         """
-        pass
+        if not self._data:
+            self._read_data()
+        return self._data.dtypes.to_dict()
 
     def _is_file(self) -> bool:
         """

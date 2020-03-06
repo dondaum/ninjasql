@@ -1,7 +1,7 @@
 import pandas as pd
 import os
 from tests import landingzone
-
+import csv
 FILEPATH = os.path.dirname(landingzone.__file__)
 
 
@@ -28,7 +28,8 @@ class FileGenerator(object):
             df.to_csv(path_or_buf=self.f_path,
                       index=False,
                       sep=self.seperator,
-                      header=self.header)
+                      header=self.header,
+                      escapechar="/")
         elif self.type == 'json':
             df.to_json(path_or_buf=self.f_path,
                        orient=self.orient)

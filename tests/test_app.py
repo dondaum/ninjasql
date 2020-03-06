@@ -2,6 +2,7 @@ import unittest
 import os
 from faker import Faker
 from ninjasql.app import NinjaSql
+from ninjasql.errors import NoColumnsError
 from tests.helpers.file_generator import FileGenerator, FILEPATH
 
 
@@ -46,24 +47,36 @@ class NinjaSqlCsvTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.gen = FileGenerator(type=NinjaSqlCsvTest.testfile['type'],
-                                name=NinjaSqlCsvTest.testfile['name'],
-                                header=True,
-                                seperator='|')
-        faker = Faker()
-        for n in range(100):
-            cls.gen.add_rows(
-                {'Lat': faker.coordinate(center=74.0, radius=0.10),
-                 'Lon': faker.coordinate(center=40.8, radius=0.10),
-                 'Txt': faker.sentence(),
-                 'Nam': faker.name(),
-                 'Add': faker.address(),
-                 'Job': faker.job()})
+        cls.gen = cls._gen_file()
         cls.gen.create()
 
     @classmethod
     def tearDownClass(cls):
         cls.gen.rm()
+
+    @classmethod
+    def _gen_file(cls,
+                  header: bool = True,
+                  sep: str = '|',
+                  type: str = None,
+                  name: str = None
+                  ):
+        ftype = type or NinjaSqlCsvTest.testfile['type']
+        fname = name or NinjaSqlCsvTest.testfile['name']
+        gen = FileGenerator(type=ftype,
+                            name=fname,
+                            header=header,
+                            seperator=sep)
+        faker = Faker()
+        for n in range(100):
+            gen.add_rows(
+                {'Lat': faker.coordinate(center=74.0, radius=0.10),
+                 'Lon': faker.coordinate(center=40.8, radius=0.10),
+                 'Txt': faker.sentence(),
+                 'Nam': faker.name(),
+                 'Add': faker.address().replace("\n", '\\n'),
+                 'Job': faker.job()})
+        return gen
 
     def test_show_columns(self):
         """
@@ -76,31 +89,6 @@ class NinjaSqlCsvTest(unittest.TestCase):
                  f"{NinjaSqlCsvTest.testfile['type']}")),
             seperator="|",
             type="csv"
-        )
-
-        exp_col = [
-            "Lat",
-            "Lon",
-            "Txt",
-            "Nam",
-            "Add",
-            "Job",
-        ]
-
-        self.assertEqual(sorted(exp_col), sorted(c.show_columns()))
-
-    def test_colums_given_but_header_true(self):
-        """
-        test if given columns get ignored if header = True is set
-        """
-        c = NinjaSql(
-            file=os.path.join(
-                FILEPATH,
-                (f"{NinjaSqlCsvTest.testfile['name']}."
-                 f"{NinjaSqlCsvTest.testfile['type']}")),
-            seperator="|",
-            type="csv",
-            columns=["A", "B", "D"]
         )
 
         exp_col = [
@@ -138,6 +126,69 @@ class NinjaSqlCsvTest(unittest.TestCase):
         ]
 
         self.assertEqual(sorted(exp_col), sorted(dtype_key_list))
+
+    def test_get_dtypes_no_header(self):
+        """
+        test if dtypes without header can be returned
+        """
+        spec = {
+            'name': "nohead",
+            'type': "csv"
+        }
+        g = NinjaSqlCsvTest._gen_file(name=spec['name'],
+                                      header=False,
+                                      type=spec['type'])
+        g.create()
+
+        c = NinjaSql(
+            file=os.path.join(
+                FILEPATH,
+                (f"{spec['name']}."
+                 f"{spec['type']}")),
+            seperator="|",
+            type="csv",
+            header=None)
+
+        g.rm()
+
+        with self.assertRaises(NoColumnsError):
+            c.get_dtypes().keys()
+
+    def test_get_dtypes_given_header(self):
+        """
+        test if dtypes with custom header can be returned
+        """
+        spec = {
+            'name': "nohead",
+            'type': "csv"
+        }
+        cols = [
+            "Lat",
+            "Lon",
+            "Txt",
+            "Nam",
+            "Add",
+            "Job",
+        ]
+        g = NinjaSqlCsvTest._gen_file(name=spec['name'],
+                                      header=False,
+                                      type=spec['type'])
+        g.create()
+
+        c = NinjaSql(
+            file=os.path.join(
+                FILEPATH,
+                (f"{spec['name']}."
+                 f"{spec['type']}")),
+            seperator="|",
+            type="csv",
+            columns=cols,
+            header=None)
+
+        dtype_key_list = c.get_dtypes().keys()
+
+        g.rm()
+        self.assertEqual(sorted(cols), sorted(dtype_key_list))
 
 
 class NinjaSqlJsonTest(unittest.TestCase):

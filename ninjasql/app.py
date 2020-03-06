@@ -2,6 +2,7 @@ from pathlib import Path
 import logging
 import pandas as pd
 import traceback
+from ninjasql.errors import NoColumnsError
 
 logging.basicConfig(level=logging.INFO,
                     format='[%(asctime)s %(name)s %(levelname)s:%(message)s]')
@@ -34,6 +35,14 @@ class NinjaSql(object):
         self._orient = orient
         self._data = None
 
+    def _has_header(self) -> bool:
+        """
+        Instance method that checks if header exist or not
+        """
+        if self._header is None and self._columns is None:
+            return False
+        return True
+
     @property
     def file(self):
         """
@@ -58,7 +67,7 @@ class NinjaSql(object):
         if not self._is_file():
             log.error(f"Can't find the a file. Check file path!")
         if self._type == 'csv':
-            if (self._columns and not self._header):
+            if not self._has_header():
                 self._columns = None
             try:
                 self._data = pd.read_csv(filepath_or_buffer=self._file,
@@ -67,7 +76,6 @@ class NinjaSql(object):
                                          names=self._columns)
             except Exception:
                 track = traceback.format_exc()
-                log.info(track)
                 log.error(f"Upps. Check file and location. Error: {track}")
         elif self._type == 'json':
             try:
@@ -76,7 +84,6 @@ class NinjaSql(object):
                     orient=self._orient)
             except Exception:
                 track = traceback.format_exc()
-                log.info(track)
                 log.error(f"Upps. Check file and location. Error: {track}")
 
     def show_columns(self) -> list:
@@ -91,8 +98,12 @@ class NinjaSql(object):
         """
         Method that get columns datatype as dict
         """
-        if not self._data:
+        if self._data is None:
             self._read_data()
+        if not self._has_header():
+            log.error("Column datatypes are asked but no columns are "
+                      "specified or given in a file.")
+            raise NoColumnsError
         return self._data.dtypes.to_dict()
 
     def _is_file(self) -> bool:

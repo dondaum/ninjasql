@@ -1,7 +1,7 @@
 import pandas as pd
 import os
 from tests import landingzone
-import csv
+
 FILEPATH = os.path.dirname(landingzone.__file__)
 
 

@@ -1,24 +1,29 @@
 import unittest
 import os
 from faker import Faker
-from ninjasql.app import NinjaSql
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from ninjasql.app import FileInspector
 from ninjasql.errors import NoColumnsError
 from tests.helpers.file_generator import FileGenerator, FILEPATH
+from tests import db
+
+DBPATH = os.path.dirname(db.__file__)
 
 
-class NinjaSqlTest(unittest.TestCase):
+class FileInspectorTest(unittest.TestCase):
 
     def test_klass(self):
         """
         test if main class is available
         """
-        self.assertIsNotNone(NinjaSql())
+        self.assertIsNotNone(FileInspector())
 
     def test_instance(self):
         """
         test if class instance can be created
         """
-        c = NinjaSql(
+        c = FileInspector(
             file="Path",
             seperator=",",
             header=True,
@@ -30,7 +35,7 @@ class NinjaSqlTest(unittest.TestCase):
         """
         test if file exist or not
         """
-        c = NinjaSql(
+        c = FileInspector(
             file="XXYUI",
             seperator="|",
             type="csv",
@@ -38,7 +43,7 @@ class NinjaSqlTest(unittest.TestCase):
         self.assertEqual(c._is_file(), False)
 
 
-class NinjaSqlCsvTest(unittest.TestCase):
+class FileInspectorCsvTest(unittest.TestCase):
 
     testfile = {
             'name': "data1",
@@ -61,8 +66,8 @@ class NinjaSqlCsvTest(unittest.TestCase):
                   type: str = None,
                   name: str = None
                   ):
-        ftype = type or NinjaSqlCsvTest.testfile['type']
-        fname = name or NinjaSqlCsvTest.testfile['name']
+        ftype = type or FileInspectorCsvTest.testfile['type']
+        fname = name or FileInspectorCsvTest.testfile['name']
         gen = FileGenerator(type=ftype,
                             name=fname,
                             header=header,
@@ -78,15 +83,26 @@ class NinjaSqlCsvTest(unittest.TestCase):
                  'Job': faker.job()})
         return gen
 
+    def _get_engine(self):
+        """
+        return a database connection
+        """
+        dbname = "ninjasql_test.db"
+        url = os.path.join(DBPATH, dbname)
+        engine = create_engine('sqlite:///' + url, echo=True)
+        Base = declarative_base()
+        Base.metadata.create_all(engine)
+        return engine
+
     def test_show_columns(self):
         """
         test if columns
         """
-        c = NinjaSql(
+        c = FileInspector(
             file=os.path.join(
                 FILEPATH,
-                (f"{NinjaSqlCsvTest.testfile['name']}."
-                 f"{NinjaSqlCsvTest.testfile['type']}")),
+                (f"{FileInspectorCsvTest.testfile['name']}."
+                 f"{FileInspectorCsvTest.testfile['type']}")),
             seperator="|",
             type="csv"
         )
@@ -106,11 +122,11 @@ class NinjaSqlCsvTest(unittest.TestCase):
         """
         test if data types gets returned as a dict
         """
-        c = NinjaSql(
+        c = FileInspector(
             file=os.path.join(
                 FILEPATH,
-                (f"{NinjaSqlCsvTest.testfile['name']}."
-                 f"{NinjaSqlCsvTest.testfile['type']}")),
+                (f"{FileInspectorCsvTest.testfile['name']}."
+                 f"{FileInspectorCsvTest.testfile['type']}")),
             seperator="|",
             type="csv"
         )
@@ -135,12 +151,12 @@ class NinjaSqlCsvTest(unittest.TestCase):
             'name': "nohead",
             'type': "csv"
         }
-        g = NinjaSqlCsvTest._gen_file(name=spec['name'],
-                                      header=False,
-                                      type=spec['type'])
+        g = FileInspectorCsvTest._gen_file(name=spec['name'],
+                                           header=False,
+                                           type=spec['type'])
         g.create()
 
-        c = NinjaSql(
+        c = FileInspector(
             file=os.path.join(
                 FILEPATH,
                 (f"{spec['name']}."
@@ -149,10 +165,9 @@ class NinjaSqlCsvTest(unittest.TestCase):
             type="csv",
             header=None)
 
-        g.rm()
-
         with self.assertRaises(NoColumnsError):
             c.get_dtypes().keys()
+        g.rm()
 
     def test_get_dtypes_given_header(self):
         """
@@ -170,12 +185,12 @@ class NinjaSqlCsvTest(unittest.TestCase):
             "Add",
             "Job",
         ]
-        g = NinjaSqlCsvTest._gen_file(name=spec['name'],
-                                      header=False,
-                                      type=spec['type'])
+        g = FileInspectorCsvTest._gen_file(name=spec['name'],
+                                           header=False,
+                                           type=spec['type'])
         g.create()
 
-        c = NinjaSql(
+        c = FileInspector(
             file=os.path.join(
                 FILEPATH,
                 (f"{spec['name']}."
@@ -190,8 +205,54 @@ class NinjaSqlCsvTest(unittest.TestCase):
         g.rm()
         self.assertEqual(sorted(cols), sorted(dtype_key_list))
 
+    def test_change_dt_to_string(self):
+        """
+        test if all columns can be changed to string datatype
+        """
+        c = FileInspector(
+            file=os.path.join(
+                FILEPATH,
+                (f"{FileInspectorCsvTest.testfile['name']}."
+                 f"{FileInspectorCsvTest.testfile['type']}")),
+            seperator="|",
+            type="csv"
+        )
+        c.col_to_str()
 
-class NinjaSqlJsonTest(unittest.TestCase):
+        dtype_key_list = c.get_dtypes().values()
+
+        check = all(x.name == "object" for x in dtype_key_list)
+
+        self.assertEqual(check, True)
+
+    def test_get_sqlddl(self):
+        """
+        test if a ddl sql file can be created
+        """
+        spec = {
+            'name': "table1",
+            'type': "STAGING"
+        }
+        connection = self._get_engine()
+
+        c = FileInspector(
+            file=os.path.join(
+                FILEPATH,
+                (f"{FileInspectorCsvTest.testfile['name']}."
+                 f"{FileInspectorCsvTest.testfile['type']}")),
+            seperator="|",
+            type="csv",
+            con=connection
+        )
+
+        c.get_file_ddl(path=DBPATH,
+                       table_name=spec['name'],
+                       schema=spec['name'])
+
+        self.assertEqual(False, True)
+
+
+class FileInspectorJsonTest(unittest.TestCase):
 
     testfile = {
             'name': "data2",
@@ -200,8 +261,8 @@ class NinjaSqlJsonTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.gen = FileGenerator(type=NinjaSqlJsonTest.testfile['type'],
-                                name=NinjaSqlJsonTest.testfile['name'],
+        cls.gen = FileGenerator(type=FileInspectorJsonTest.testfile['type'],
+                                name=FileInspectorJsonTest.testfile['name'],
                                 header=True,
                                 seperator='|',
                                 orient="split")
@@ -225,11 +286,11 @@ class NinjaSqlJsonTest(unittest.TestCase):
         """
         test if columns
         """
-        c = NinjaSql(
+        c = FileInspector(
             file=os.path.join(
                 FILEPATH,
-                (f"{NinjaSqlJsonTest.testfile['name']}."
-                 f"{NinjaSqlJsonTest.testfile['type']}")),
+                (f"{FileInspectorJsonTest.testfile['name']}."
+                 f"{FileInspectorJsonTest.testfile['type']}")),
             type="json",
             orient="split"
         )
@@ -250,11 +311,11 @@ class NinjaSqlJsonTest(unittest.TestCase):
         """
         test if columns
         """
-        c = NinjaSql(
+        c = FileInspector(
             file=os.path.join(
                 FILEPATH,
-                (f"{NinjaSqlJsonTest.testfile['name']}."
-                 f"{NinjaSqlJsonTest.testfile['type']}")),
+                (f"{FileInspectorJsonTest.testfile['name']}."
+                 f"{FileInspectorJsonTest.testfile['type']}")),
             type="json",
             orient="split"
         )

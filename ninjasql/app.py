@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO,
 log = logging.getLogger(__name__)
 
 
-class NinjaSql(object):
+class FileInspector(object):
     """
     1. There is a source file with data in it
     2. Profile data, get metadata
@@ -18,6 +18,13 @@ class NinjaSql(object):
         b. historization table
     4. There need to be an import folder
     5. Archive folder
+    :param file: filepath
+    :param seperator: file seperator for csv and txt files
+    :param header: Is a header row with columns names given
+    :param type: File type {csv, json}
+    :param columns: Custom column names if no header is given
+    :param orient: Json orientation
+    :param con: Sqlalchemy database connection
     """
     def __init__(self,
                  file: str = None,
@@ -26,6 +33,7 @@ class NinjaSql(object):
                  type: str = None,
                  columns: list = None,
                  orient: str = 'records',
+                 con=None
                  ):
         self._file = file
         self._seperator = seperator
@@ -34,6 +42,7 @@ class NinjaSql(object):
         self._columns = columns
         self._orient = orient
         self._data = None
+        self._con = con
 
     def _has_header(self) -> bool:
         """
@@ -106,6 +115,14 @@ class NinjaSql(object):
             raise NoColumnsError
         return self._data.dtypes.to_dict()
 
+    def col_to_str(self) -> None:
+        """
+        Method that change all column data type to a string type
+        """
+        if self._data is None:
+            self._read_data()
+        self._data = self._data.astype(str)
+
     def _is_file(self) -> bool:
         """
         Checks if a given file exist or not
@@ -113,6 +130,27 @@ class NinjaSql(object):
         self._file = Path(self._file)
         return self._file.is_file()
 
+    def get_file_ddl(self,
+                     path,
+                     table_name: str,
+                     schema: str) -> None:
+        """
+        Method that get the sql ddl statement and save it as a file
+        in a target path
+        """
+        try:
+            tpath = Path(path)
+        except Exception as e:
+            log.error(f"Please provide a valid path. Error: {e}")
+            raise e
+        try:
+            ddl = pd.io.sql.get_schema(frame=self._data,
+                                       name=table_name,
+                                       con=self._con)
+            print(ddl)
+        except ValueError as e:
+            log.error(f"{e}")
+
 
 if __name__ == "__main__":
-    c = NinjaSql(type="json", seperator='|')
+    c = FileInspector(type="json", seperator='|')

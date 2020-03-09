@@ -1,10 +1,11 @@
 import unittest
 import os
 from faker import Faker
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.types import VARCHAR
 from ninjasql.app import FileInspector
-from ninjasql.errors import NoColumnsError
+from ninjasql.errors import NoColumnsError, NoTableNameGivenError
 from tests.helpers.file_generator import FileGenerator, FILEPATH
 from tests import db
 
@@ -92,7 +93,14 @@ class FileInspectorCsvTest(unittest.TestCase):
         engine = create_engine('sqlite:///' + url, echo=True)
         Base = declarative_base()
         Base.metadata.create_all(engine)
+        engine.execute(f"ATTACH DATABASE '{url}' AS STAGING;")
         return engine
+
+    def _rm(self, path):
+        try:
+            os.remove(path)
+        except OSError:
+            pass
 
     def test_show_columns(self):
         """
@@ -231,7 +239,7 @@ class FileInspectorCsvTest(unittest.TestCase):
         """
         spec = {
             'name': "table1",
-            'type': "STAGING"
+            'schema': "STAGING"
         }
         connection = self._get_engine()
 
@@ -245,11 +253,163 @@ class FileInspectorCsvTest(unittest.TestCase):
             con=connection
         )
 
-        c.get_file_ddl(path=DBPATH,
+        c.get_file_ddl(path=FILEPATH,
                        table_name=spec['name'],
-                       schema=spec['name'])
+                       schema=spec['schema'])
 
-        self.assertEqual(False, True)
+        nfname = f"{spec['schema']}_{spec['name']}"
+        full_path = f"{os.path.join(FILEPATH, nfname)}.sql"
+
+        self.assertEqual(os.path.exists(full_path), True)
+        self._rm(full_path)
+
+    def test_get_sqldll_specific_types(self):
+        """
+        test if ddl can customized with specific types
+        """
+        spec = {
+            'name': "table2",
+            'schema': "STAGING"
+        }
+        cust_types = {
+            "Lat": VARCHAR(length=1000),
+            "Lon": VARCHAR(length=1000),
+            "Txt": VARCHAR(length=1000),
+            "Nam": VARCHAR(length=1000),
+            "Add": VARCHAR(length=1000),
+            "Job": VARCHAR(length=1000),
+        }
+        connection = self._get_engine()
+
+        c = FileInspector(
+            file=os.path.join(
+                FILEPATH,
+                (f"{FileInspectorCsvTest.testfile['name']}."
+                 f"{FileInspectorCsvTest.testfile['type']}")),
+            seperator="|",
+            type="csv",
+            con=connection
+        )
+
+        c.get_file_ddl(path=FILEPATH,
+                       table_name=spec['name'],
+                       schema=spec['schema'],
+                       dtype=cust_types)
+
+        nfname = f"{spec['schema']}_{spec['name']}"
+        full_path = f"{os.path.join(FILEPATH, nfname)}.sql"
+
+        self.assertEqual(os.path.exists(full_path), True)
+        self._rm(full_path)
+
+    def test_sql_qualify_name(self):
+        """
+        test if name is correctly qualified
+        """
+        name_com = {
+            "A": {"db": "db1",
+                  "schema": "schema1",
+                  "table": "table1",
+                  "exp": "db1.schema1.table1"},
+            "B": {"db": None,
+                  "schema": "schema1",
+                  "table": "table1",
+                  "exp": "schema1.table1"},
+            "C": {"db": None,
+                  "schema": None,
+                  "table": "table1",
+                  "exp": "table1"},
+            "D": {"db": "db1",
+                  "schema": None,
+                  "table": "table1",
+                  "exp": "db1.table1"},
+            "E": {"db": "db1",
+                  "schema": "schema1",
+                  "table": None,
+                  "exp": None}
+        }
+
+        c = FileInspector(
+            file=os.path.join(
+                FILEPATH,
+                (f"{FileInspectorCsvTest.testfile['name']}."
+                 f"{FileInspectorCsvTest.testfile['type']}")),
+            seperator="|",
+            type="csv",
+        )
+        for test_case in name_com.keys():
+            db = name_com[test_case]["db"]
+            schema = name_com[test_case]["schema"]
+            table = name_com[test_case]["table"]
+            exp = name_com[test_case]["exp"]
+            if not table:
+                with self.assertRaises(NoTableNameGivenError):
+                    c._build_name(db=db,
+                                  schema=schema,
+                                  table=table)
+            else:
+                self.assertEqual(c._build_name(
+                    db=db,
+                    schema=schema,
+                    table=table,
+                ), exp)
+
+    def test_save_file(self):
+        """
+        test if file can be saved
+        """
+        connection = self._get_engine()
+        c = FileInspector(
+            file=os.path.join(
+                FILEPATH,
+                (f"{FileInspectorCsvTest.testfile['name']}."
+                 f"{FileInspectorCsvTest.testfile['type']}")),
+            seperator="|",
+            type="csv",
+            con=connection
+        )
+
+        cont = "CREATE OR REPLACE TABLE 1"
+        fname = "db1.schema1.table1"
+
+        c._save_file(path=FILEPATH,
+                     fname=fname,
+                     content=cont)
+
+        nfname = "db1_schema1_table1"
+        full_path = f"{os.path.join(FILEPATH, nfname)}.sql"
+
+        self.assertEqual(os.path.exists(full_path), True)
+        self._rm(full_path)
+
+    def test_create_db_table(self):
+        """
+        test if pandas dataframe can be translated in a database
+        table.
+        """
+        spec = {
+            'name': "table1",
+            'schema': "STAGING"
+        }
+        connection = self._get_engine()
+
+        c = FileInspector(
+            file=os.path.join(
+                FILEPATH,
+                (f"{FileInspectorCsvTest.testfile['name']}."
+                 f"{FileInspectorCsvTest.testfile['type']}")),
+            seperator="|",
+            type="csv",
+            con=connection
+        )
+
+        c.create_db_table(table_name=spec['name'],
+                          if_exists="replace")
+
+        insp = inspect(connection)
+        tables = insp.get_table_names()
+
+        self.assertIn(spec['name'], tables)
 
 
 class FileInspectorJsonTest(unittest.TestCase):

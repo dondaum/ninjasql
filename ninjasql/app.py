@@ -1,12 +1,22 @@
 from pathlib import Path
+import os
 import logging
 import pandas as pd
+from sqlalchemy.schema import CreateSchema
+from sqlalchemy import inspect
 import traceback
-from ninjasql.errors import NoColumnsError
+from ninjasql.errors import NoColumnsError, NoTableNameGivenError
 
 logging.basicConfig(level=logging.INFO,
                     format='[%(asctime)s %(name)s %(levelname)s:%(message)s]')
 log = logging.getLogger(__name__)
+
+
+CONFIG = {
+    "staging": {
+        "schema_name": "staging"
+    }
+}
 
 
 class FileInspector(object):
@@ -133,23 +143,118 @@ class FileInspector(object):
     def get_file_ddl(self,
                      path,
                      table_name: str,
-                     schema: str) -> None:
+                     schema: str,
+                     database: str = None,
+                     dtype=None) -> None:
         """
         Method that get the sql ddl statement and save it as a file
         in a target path
+        :param path: Directory path where file should be saved
+        :table name: DDL table name
+        :schema: DDL schema name
+        :database: DDL database name
+        :dtype : dict of column name to SQL type, default None
+        Optional specifying the datatype for columns. The SQL type should
+        be a SQLAlchemy type, or a string for sqlite3 fallback connection.
         """
+        if self._data is None:
+            self._read_data()
         try:
             tpath = Path(path)
         except Exception as e:
             log.error(f"Please provide a valid path. Error: {e}")
             raise e
         try:
+            qu_name = self._build_name(table=table_name,
+                                       db=database,
+                                       schema=schema)
             ddl = pd.io.sql.get_schema(frame=self._data,
-                                       name=table_name,
-                                       con=self._con)
-            print(ddl)
+                                       name=qu_name,
+                                       con=self._con,
+                                       dtype=dtype
+                                       )
+            self._save_file(
+                path=tpath,
+                fname=qu_name,
+                content=ddl
+            )
         except ValueError as e:
             log.error(f"{e}")
+
+    def _build_name(self,
+                    table: str,
+                    db: str = None,
+                    schema: str = None
+                    ) -> str:
+        """
+        Method that create the final qualified sql object name
+        """
+        if table is None:
+            log.error(f"No table name given but needed. Please specify name:")
+            raise NoTableNameGivenError
+        if (db and schema):
+            return f"{db}.{schema}.{table}"
+        elif (db and not schema):
+            return f"{db}.{table}"
+        elif (schema and not db):
+            return f"{schema}.{table}"
+        elif (table and not schema and not db):
+            return f"{table}"
+
+    def _save_file(self,
+                   path: str,
+                   fname: str,
+                   content: str,
+                   ) -> None:
+        """
+        method that save a string content to a given path.
+        :param path: Directory path where file shall be saved
+        :fname : Target filename
+        :content: File content
+        """
+        if not os.path.isdir(path):
+            log.error(f"Given Path is not a valid directory. Please check!")
+            raise FileNotFoundError
+
+        nfname = f"{fname.replace('.', '_')}.sql"
+        with open(os.path.join(path, nfname), "w") as f:
+            f.write(content)
+
+    def create_db_table(self,
+                        table_name: str,
+                        schema: str = None,
+                        if_exists: str = 'replace',
+                        dtype=None) -> None:
+        """
+        method that creates the database table without data
+        :table_name path: target table name
+        :schema : Target database schema name
+        :if_exists: How to behave if the table already exists.
+        {‘fail’, ‘replace’, ‘append’}
+        :dtype : dict of column name to SQL type, default None
+        Optional specifying the datatype for columns. The SQL type should
+        be a SQLAlchemy type, or a string for sqlite3 fallback connection.
+        """
+        if self._data is None:
+            self._read_data()
+        if schema:
+            insp = inspect(self._con)
+            schemas = insp.get_schema_names()
+            if schema not in schemas:
+                self._con.execute(CreateSchema(schema))
+        try:
+            df = self._data[:0]
+            df.to_sql(
+                name=table_name,
+                schema=schema,
+                con=self._con,
+                if_exists=if_exists,
+                index=False,
+                dtype=dtype
+            )
+        except Exception as e:
+            log.error(f"Can't create db table. Error: {e}")
+            raise e
 
 
 if __name__ == "__main__":

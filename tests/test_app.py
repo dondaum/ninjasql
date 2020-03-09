@@ -389,7 +389,8 @@ class FileInspectorCsvTest(unittest.TestCase):
         """
         spec = {
             'name': "table1",
-            'schema': "STAGING"
+            'schema': "STAGING",
+            'type': "staging"
         }
         connection = self._get_engine()
 
@@ -404,7 +405,99 @@ class FileInspectorCsvTest(unittest.TestCase):
         )
 
         c.create_db_table(table_name=spec['name'],
-                          if_exists="replace")
+                          if_exists="replace",
+                          type=spec['type'])
+
+        insp = inspect(connection)
+        tables = insp.get_table_names()
+
+        self.assertIn(spec['name'], tables)
+
+    def test_save_history_table(self):
+        """
+        test if a second table is created that contains all relevant
+        attribute for the scd2 historization
+        """
+        spec = {
+            'name': "table1",
+            'schema': "HISTORY"
+        }
+        connection = self._get_engine()
+
+        c = FileInspector(
+            file=os.path.join(
+                FILEPATH,
+                (f"{FileInspectorCsvTest.testfile['name']}."
+                 f"{FileInspectorCsvTest.testfile['type']}")),
+            seperator="|",
+            type="csv",
+            con=connection
+        )
+
+        c.get_history_ddl(path=FILEPATH,
+                          table_name=spec['name'],
+                          schema=spec['schema'])
+
+        nfname = f"{spec['schema']}_{spec['name']}"
+        full_path = f"{os.path.join(FILEPATH, nfname)}.sql"
+
+        self.assertEqual(os.path.exists(full_path), True)
+        self._rm(full_path)
+
+    def test_add_scd2_attributes(self):
+        """
+        test if scd2 attributes can be add to the dataframe
+        """
+        c = FileInspector(
+            file=os.path.join(
+                FILEPATH,
+                (f"{FileInspectorCsvTest.testfile['name']}."
+                 f"{FileInspectorCsvTest.testfile['type']}")),
+            seperator="|",
+            type="csv",
+        )
+
+        cols = [
+            "ROW",
+            "UPDATED_AT",
+            "VALID_FROM_DATE",
+            "VALID_TO_DATE",
+        ]
+
+        c._add_scd2_attributes()
+
+        dtype_key_list = c._his_data.dtypes.to_dict().keys()
+
+        for col in cols:
+            self.assertIn(col, dtype_key_list)
+
+    def test_create_db_history_table(self):
+        """
+        test if pandas dataframe can be translated in a database
+        table.
+        """
+        spec = {
+            'name': "table2",
+            'schema': "HISTORY",
+            'type': "history"
+        }
+        connection = self._get_engine()
+
+        c = FileInspector(
+            file=os.path.join(
+                FILEPATH,
+                (f"{FileInspectorCsvTest.testfile['name']}."
+                 f"{FileInspectorCsvTest.testfile['type']}")),
+            seperator="|",
+            type="csv",
+            con=connection
+        )
+
+        c._add_scd2_attributes()
+
+        c.create_db_table(table_name=spec['name'],
+                          if_exists="replace",
+                          type=spec['type'])
 
         insp = inspect(connection)
         tables = insp.get_table_names()

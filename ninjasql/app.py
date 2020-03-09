@@ -4,6 +4,7 @@ import logging
 import pandas as pd
 from sqlalchemy.schema import CreateSchema
 from sqlalchemy import inspect
+from datetime import datetime
 import traceback
 from ninjasql.errors import NoColumnsError, NoTableNameGivenError
 
@@ -14,7 +15,12 @@ log = logging.getLogger(__name__)
 
 CONFIG = {
     "staging": {
-        "schema_name": "staging"
+        "schema_name": "STAGING",
+        "table_prefix_name": "STG_"
+    },
+    "history": {
+        "schema_name": "HISTORY",
+        "table_prefix_name": "HIS_"
     }
 }
 
@@ -52,6 +58,7 @@ class FileInspector(object):
         self._columns = columns
         self._orient = orient
         self._data = None
+        self._his_data = None
         self._con = con
 
     def _has_header(self) -> bool:
@@ -181,6 +188,62 @@ class FileInspector(object):
         except ValueError as e:
             log.error(f"{e}")
 
+    def get_history_ddl(self,
+                        path,
+                        table_name: str,
+                        schema: str,
+                        database: str = None,
+                        dtype=None) -> None:
+        """
+        Method that get the sql history ddl statement and save it as a file
+        in a target path
+        :param path: Directory path where file should be saved
+        :table name: DDL table name
+        :schema: DDL schema name
+        :database: DDL database name
+        :dtype : dict of column name to SQL type, default None
+        Optional specifying the datatype for columns. The SQL type should
+        be a SQLAlchemy type, or a string for sqlite3 fallback connection.
+        """
+        if self._data is None:
+            self._read_data()
+        try:
+            tpath = Path(path)
+        except Exception as e:
+            log.error(f"Please provide a valid path. Error: {e}")
+            raise e
+        self._add_scd2_attributes()
+        try:
+            qu_name = self._build_name(table=table_name,
+                                       db=database,
+                                       schema=schema)
+            ddl = pd.io.sql.get_schema(frame=self._his_data,
+                                       name=qu_name,
+                                       con=self._con,
+                                       dtype=dtype
+                                       )
+            self._save_file(
+                path=tpath,
+                fname=qu_name,
+                content=ddl
+            )
+        except ValueError as e:
+            log.error(f"{e}")
+
+    def _add_scd2_attributes(self) -> None:
+        """
+        Instance method that add scd2 relevant attributes
+        """
+        if self._data is None:
+            self._read_data()
+        now = datetime.now()
+        now_str = now.strftime("%Y-%m-%d %H:%M:%S")
+        self._his_data = self._data.copy()
+        self._his_data['ROW'] = pd.Int64Dtype()
+        self._his_data['UPDATED_AT'] = pd.Timestamp(now_str)
+        self._his_data['VALID_FROM_DATE'] = pd.Timestamp(now_str)
+        self._his_data['VALID_TO_DATE'] = pd.Timestamp(now_str)
+
     def _build_name(self,
                     table: str,
                     db: str = None,
@@ -222,9 +285,11 @@ class FileInspector(object):
 
     def create_db_table(self,
                         table_name: str,
+                        type: str,
                         schema: str = None,
                         if_exists: str = 'replace',
-                        dtype=None) -> None:
+                        dtype=None
+                        ) -> None:
         """
         method that creates the database table without data
         :table_name path: target table name
@@ -234,6 +299,8 @@ class FileInspector(object):
         :dtype : dict of column name to SQL type, default None
         Optional specifying the datatype for columns. The SQL type should
         be a SQLAlchemy type, or a string for sqlite3 fallback connection.
+        :type : str {'staging', 'history'}. Determine if the staging or
+        history table shall be created
         """
         if self._data is None:
             self._read_data()
@@ -243,7 +310,10 @@ class FileInspector(object):
             if schema not in schemas:
                 self._con.execute(CreateSchema(schema))
         try:
-            df = self._data[:0]
+            if type == "staging":
+                df = self._data[:0]
+            elif type == "history":
+                df = self._his_data[:0]
             df.to_sql(
                 name=table_name,
                 schema=schema,

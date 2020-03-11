@@ -7,6 +7,7 @@ from sqlalchemy import inspect
 from datetime import datetime
 import traceback
 from ninjasql.errors import NoColumnsError, NoTableNameGivenError
+from ninjasql.settings import Config
 
 logging.basicConfig(level=logging.INFO,
                     format='[%(asctime)s %(name)s %(levelname)s:%(message)s]')
@@ -60,6 +61,7 @@ class FileInspector(object):
         self._data = None
         self._his_data = None
         self._con = con
+        self.config = Config()
 
     def _has_header(self) -> bool:
         """

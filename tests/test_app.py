@@ -93,7 +93,7 @@ class FileInspectorCsvTest(unittest.TestCase):
         engine = create_engine('sqlite:///' + url, echo=True)
         Base = declarative_base()
         Base.metadata.create_all(engine)
-        engine.execute(f"ATTACH DATABASE '{url}' AS STAGING;")
+        # engine.execute(f"ATTACH DATABASE '{url}' AS STAGING;")
         return engine
 
     def _rm(self, path):

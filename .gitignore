@@ -2,3 +2,4 @@ tests/landingzone/*.csv
 tests/db/*.sqlite
 tests/db/*.db
 tests/db/*.sql
+*.ini

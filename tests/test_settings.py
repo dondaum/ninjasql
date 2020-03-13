@@ -1,7 +1,8 @@
 import unittest
 import os
-import textwrap
+
 from tests import config
+from tests.helpers.ini_generator import IniGenerator
 from ninjasql.settings import Config
 
 
@@ -14,38 +15,14 @@ class ConfigSettingTest(unittest.TestCase):
     def setUpClass(cls):
         cls.inif_name = "ninjasql.ini"
         cls.nf_path = os.path.join(CONFIGPATH, cls.inif_name)
-        ConfigSettingTest._save_file(
-            content=ConfigSettingTest._ini_file_content(),
+        IniGenerator._save_file(
+            content=IniGenerator._ini_file_content(),
             path=cls.nf_path
         )
 
     @classmethod
     def tearDownClass(cls):
-        ConfigSettingTest._rm_file(cls.nf_path)
-
-    @staticmethod
-    def _ini_file_content() -> str:
-        return textwrap.dedent("""\
-        [Staging]
-        schema_name=STAGING
-        table_prefix_name=STG_
-
-        [PersistentStaging]
-        schema_name=PERS_STAGING
-        table_prefix_name=PERS_STG
-        """)
-
-    @staticmethod
-    def _save_file(content: str, path: str) -> None:
-        with open(path, "w") as f:
-            f.write(content)
-
-    @staticmethod
-    def _rm_file(path: str) -> None:
-        try:
-            os.remove(path)
-        except OSError:
-            pass
+        IniGenerator._rm_file(cls.nf_path)
 
     def _get_config_path(self) -> str:
         """
@@ -75,6 +52,16 @@ class ConfigSettingTest(unittest.TestCase):
         c.ini_path = conf
         c.read()
         self.assertIsNotNone(c.config)
+    
+    def test_if_all_content_is_set_if_read(self):
+        """
+                if schema is None:
+            try:
+                schema = self.config.config["Staging"]["schema_name"]
+            except KeyError as e:
+                log.error(f"Can't {e}")
+        """
+        pass
 
     def test_if_main_section_exists(self):
         """

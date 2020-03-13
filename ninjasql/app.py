@@ -88,6 +88,13 @@ class FileInspector(object):
         except Exception as e:
             log.error(f"Please provide a valid path. Error: {e}")
 
+    def load_config(self, cfg_path: str) -> None:
+        """
+        method that load the ini configuration file
+        """
+        self.config.ini_path = cfg_path
+        self.config.read()
+
     def _read_data(self) -> None:
         """
         Method that reads data and save it as a instance variable
@@ -152,7 +159,7 @@ class FileInspector(object):
     def get_file_ddl(self,
                      path,
                      table_name: str,
-                     schema: str,
+                     schema: str = None,
                      database: str = None,
                      dtype=None) -> None:
         """
@@ -160,7 +167,8 @@ class FileInspector(object):
         in a target path
         :param path: Directory path where file should be saved
         :table name: DDL table name
-        :schema: DDL schema name
+        :schema: DDL schema name. If not specified take schema from the
+        configuration ini file
         :database: DDL database name
         :dtype : dict of column name to SQL type, default None
         Optional specifying the datatype for columns. The SQL type should

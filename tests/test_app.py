@@ -4,12 +4,16 @@ from faker import Faker
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.types import VARCHAR
+
 from ninjasql.app import FileInspector
 from ninjasql.errors import NoColumnsError, NoTableNameGivenError
 from tests.helpers.file_generator import FileGenerator, FILEPATH
+from tests.helpers.ini_generator import IniGenerator
+from tests import config
 from tests import db
 
 DBPATH = os.path.dirname(db.__file__)
+CONFIGPATH = os.path.dirname(config.__file__)
 
 
 class FileInspectorTest(unittest.TestCase):
@@ -42,6 +46,32 @@ class FileInspectorTest(unittest.TestCase):
             type="csv",
         )
         self.assertEqual(c._is_file(), False)
+
+    def test_read_config(self):
+        """
+        Test if config class can read config ini and
+        get results back
+        """
+        c = FileInspector(
+            file="XXYUI",
+            seperator="|",
+            type="csv",
+        )
+        inif_name = "ninjasql.ini"
+        nf_path = os.path.join(CONFIGPATH, inif_name)
+        IniGenerator._save_file(
+            content=IniGenerator._ini_file_content(),
+            path=nf_path
+        )
+        c.load_config(cfg_path=nf_path)
+
+        expected_sections = [
+            "Staging",
+            "PersistentStaging"
+        ]
+
+        for _ in expected_sections:
+            self.assertIn(_, c.config.config.sections())
 
 
 class FileInspectorCsvTest(unittest.TestCase):

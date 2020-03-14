@@ -16,6 +16,13 @@ DBPATH = os.path.dirname(db.__file__)
 CONFIGPATH = os.path.dirname(config.__file__)
 
 
+def rm_file(path):
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
 class FileInspectorTest(unittest.TestCase):
 
     def test_klass(self):
@@ -85,10 +92,12 @@ class FileInspectorCsvTest(unittest.TestCase):
     def setUpClass(cls):
         cls.gen = cls._gen_file()
         cls.gen.create()
+        cls._create_ini_file()
 
     @classmethod
     def tearDownClass(cls):
         cls.gen.rm()
+        rm_file(FileInspectorCsvTest._get_inipath())
 
     @classmethod
     def _gen_file(cls,
@@ -131,6 +140,18 @@ class FileInspectorCsvTest(unittest.TestCase):
             os.remove(path)
         except OSError:
             pass
+
+    @staticmethod
+    def _create_ini_file():
+        IniGenerator._save_file(
+            content=IniGenerator._ini_file_content(),
+            path=FileInspectorCsvTest._get_inipath()
+        )
+
+    @staticmethod
+    def _get_inipath() -> str:
+        inif_name = "ninjasql.ini"
+        return os.path.join(CONFIGPATH, inif_name)
 
     def test_show_columns(self):
         """
@@ -288,6 +309,38 @@ class FileInspectorCsvTest(unittest.TestCase):
                        schema=spec['schema'])
 
         nfname = f"{spec['schema']}_{spec['name']}"
+        full_path = f"{os.path.join(FILEPATH, nfname)}.sql"
+
+        self.assertEqual(os.path.exists(full_path), True)
+        self._rm(full_path)
+
+    def test_get_sqlddl_with_ini(self):
+        """
+        test if a ddl sql file can be created with the parameters
+        of the ini file
+        """
+        spec = {
+            'name': "table1",
+            'table_prefix': "STG_",
+            'schema': "STAGING"
+        }
+        connection = self._get_engine()
+
+        c = FileInspector(
+            file=os.path.join(
+                FILEPATH,
+                (f"{FileInspectorCsvTest.testfile['name']}."
+                 f"{FileInspectorCsvTest.testfile['type']}")),
+            seperator="|",
+            type="csv",
+            con=connection
+        )
+
+        c.get_file_ddl(path=FILEPATH,
+                       table_name=spec['name']
+                       )
+
+        nfname = f"{spec['schema']}_{spec['table_prefix']}_{spec['name']}"
         full_path = f"{os.path.join(FILEPATH, nfname)}.sql"
 
         self.assertEqual(os.path.exists(full_path), True)

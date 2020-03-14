@@ -11,6 +11,17 @@ class Config:
     """
     :ini_path : path of the ini file for the configuration
     """
+    SECTIONS = {
+        "Staging": [
+            "schema_name",
+            "table_prefix_name"
+        ],
+        "PersistentStaging": [
+            "schema_name",
+            "table_prefix_name"
+        ]
+    }
+
     def __init__(self,
                  ini_path: str = ''):
         self._ini_path = Path(ini_path)
@@ -46,3 +57,22 @@ class Config:
         """
         self._config = configparser.ConfigParser()
         self._config.read(self._ini_path)
+        self._check_content()
+
+    def _check_content(self) -> None:
+        """
+        method that reads expected sections and options of the
+        ini file
+        """
+        for key, value in self.__class__.SECTIONS.items():
+            for sec in value:
+                try:
+                    self._config.get(key, sec)
+                except configparser.NoSectionError as e:
+                    log.error(f"Can't find Section: {key} in ini file."
+                              "Error: {e}")
+                    raise e
+                except configparser.NoOptionError as e:
+                    log.error(f"Can't find option: {sec} in section {key} "
+                              "ini file. Error: {e}")
+                    raise e

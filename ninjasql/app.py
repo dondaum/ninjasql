@@ -174,6 +174,8 @@ class FileInspector(object):
         Optional specifying the datatype for columns. The SQL type should
         be a SQLAlchemy type, or a string for sqlite3 fallback connection.
         """
+        if not schema:
+            schema = self.config.config['Staging']['schema_name']
         if self._data is None:
             self._read_data()
         try:

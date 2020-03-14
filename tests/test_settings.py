@@ -1,5 +1,6 @@
 import unittest
 import os
+from configparser import NoSectionError, NoOptionError
 
 from tests import config
 from tests.helpers.ini_generator import IniGenerator
@@ -52,7 +53,7 @@ class ConfigSettingTest(unittest.TestCase):
         c.ini_path = conf
         c.read()
         self.assertIsNotNone(c.config)
-    
+
     def test_if_all_content_is_set_if_read(self):
         """
                 if schema is None:
@@ -61,7 +62,15 @@ class ConfigSettingTest(unittest.TestCase):
             except KeyError as e:
                 log.error(f"Can't {e}")
         """
-        pass
+        conf = self._get_config_path()
+        c = Config(ini_path=conf)
+        c.SECTIONS["EX"] = ["A", "B"]
+        c.SECTIONS["Staging"].append("TMG")
+        with self.assertRaises((NoSectionError, NoOptionError)):
+            c.read()
+            c._check_content()
+        del c.SECTIONS["EX"]
+        c.SECTIONS["Staging"].remove("TMG")
 
     def test_if_main_section_exists(self):
         """

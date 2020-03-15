@@ -23,19 +23,42 @@ def rm_file(path):
         pass
 
 
+def create_ini_file():
+    IniGenerator._save_file(
+        content=IniGenerator._ini_file_content(),
+        path=get_inipath()
+    )
+
+
+def get_inipath() -> str:
+    inif_name = "ninjasql.ini"
+    return os.path.join(CONFIGPATH, inif_name)
+
+
 class FileInspectorTest(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        create_ini_file()
+
+    @classmethod
+    def tearDownClass(cls):
+        rm_file(get_inipath())
 
     def test_klass(self):
         """
         test if main class is available
         """
-        self.assertIsNotNone(FileInspector())
+        self.assertIsNotNone(FileInspector(
+            cfg_path=get_inipath()
+        ))
 
     def test_instance(self):
         """
         test if class instance can be created
         """
         c = FileInspector(
+            cfg_path=get_inipath(),
             file="Path",
             seperator=",",
             header=True,
@@ -48,6 +71,7 @@ class FileInspectorTest(unittest.TestCase):
         test if file exist or not
         """
         c = FileInspector(
+            cfg_path=get_inipath(),
             file="XXYUI",
             seperator="|",
             type="csv",
@@ -60,6 +84,7 @@ class FileInspectorTest(unittest.TestCase):
         get results back
         """
         c = FileInspector(
+            cfg_path=get_inipath(),
             file="XXYUI",
             seperator="|",
             type="csv",
@@ -92,12 +117,12 @@ class FileInspectorCsvTest(unittest.TestCase):
     def setUpClass(cls):
         cls.gen = cls._gen_file()
         cls.gen.create()
-        cls._create_ini_file()
+        create_ini_file()
 
     @classmethod
     def tearDownClass(cls):
         cls.gen.rm()
-        rm_file(FileInspectorCsvTest._get_inipath())
+        rm_file(get_inipath())
 
     @classmethod
     def _gen_file(cls,
@@ -141,23 +166,12 @@ class FileInspectorCsvTest(unittest.TestCase):
         except OSError:
             pass
 
-    @staticmethod
-    def _create_ini_file():
-        IniGenerator._save_file(
-            content=IniGenerator._ini_file_content(),
-            path=FileInspectorCsvTest._get_inipath()
-        )
-
-    @staticmethod
-    def _get_inipath() -> str:
-        inif_name = "ninjasql.ini"
-        return os.path.join(CONFIGPATH, inif_name)
-
     def test_show_columns(self):
         """
         test if columns
         """
         c = FileInspector(
+            cfg_path=get_inipath(),
             file=os.path.join(
                 FILEPATH,
                 (f"{FileInspectorCsvTest.testfile['name']}."
@@ -182,6 +196,7 @@ class FileInspectorCsvTest(unittest.TestCase):
         test if data types gets returned as a dict
         """
         c = FileInspector(
+            cfg_path=get_inipath(),
             file=os.path.join(
                 FILEPATH,
                 (f"{FileInspectorCsvTest.testfile['name']}."
@@ -216,6 +231,7 @@ class FileInspectorCsvTest(unittest.TestCase):
         g.create()
 
         c = FileInspector(
+            cfg_path=get_inipath(),
             file=os.path.join(
                 FILEPATH,
                 (f"{spec['name']}."
@@ -250,6 +266,7 @@ class FileInspectorCsvTest(unittest.TestCase):
         g.create()
 
         c = FileInspector(
+            cfg_path=get_inipath(),
             file=os.path.join(
                 FILEPATH,
                 (f"{spec['name']}."
@@ -269,6 +286,7 @@ class FileInspectorCsvTest(unittest.TestCase):
         test if all columns can be changed to string datatype
         """
         c = FileInspector(
+            cfg_path=get_inipath(),
             file=os.path.join(
                 FILEPATH,
                 (f"{FileInspectorCsvTest.testfile['name']}."
@@ -290,11 +308,13 @@ class FileInspectorCsvTest(unittest.TestCase):
         """
         spec = {
             'name': "table1",
-            'schema': "STAGING"
+            'schema': "CUSTOM",
+            'table_prefix': "STG"
         }
         connection = self._get_engine()
 
         c = FileInspector(
+            cfg_path=get_inipath(),
             file=os.path.join(
                 FILEPATH,
                 (f"{FileInspectorCsvTest.testfile['name']}."
@@ -304,11 +324,11 @@ class FileInspectorCsvTest(unittest.TestCase):
             con=connection
         )
 
-        c.get_file_ddl(path=FILEPATH,
-                       table_name=spec['name'],
-                       schema=spec['schema'])
+        c.get_staging_ddl(path=FILEPATH,
+                          table_name=spec['name'],
+                          schema=spec['schema'])
 
-        nfname = f"{spec['schema']}_{spec['name']}"
+        nfname = f"{spec['schema']}_{spec['table_prefix']}_{spec['name']}"
         full_path = f"{os.path.join(FILEPATH, nfname)}.sql"
 
         self.assertEqual(os.path.exists(full_path), True)
@@ -321,12 +341,13 @@ class FileInspectorCsvTest(unittest.TestCase):
         """
         spec = {
             'name': "table1",
-            'table_prefix': "STG_",
+            'table_prefix': "STG",
             'schema': "STAGING"
         }
         connection = self._get_engine()
 
         c = FileInspector(
+            cfg_path=get_inipath(),
             file=os.path.join(
                 FILEPATH,
                 (f"{FileInspectorCsvTest.testfile['name']}."
@@ -336,9 +357,8 @@ class FileInspectorCsvTest(unittest.TestCase):
             con=connection
         )
 
-        c.get_file_ddl(path=FILEPATH,
-                       table_name=spec['name']
-                       )
+        c.get_staging_ddl(path=FILEPATH,
+                          table_name=spec['name'])
 
         nfname = f"{spec['schema']}_{spec['table_prefix']}_{spec['name']}"
         full_path = f"{os.path.join(FILEPATH, nfname)}.sql"
@@ -352,7 +372,8 @@ class FileInspectorCsvTest(unittest.TestCase):
         """
         spec = {
             'name': "table2",
-            'schema': "STAGING"
+            'schema': "STAGING",
+            'table_prefix': "STG",
         }
         cust_types = {
             "Lat": VARCHAR(length=1000),
@@ -365,6 +386,7 @@ class FileInspectorCsvTest(unittest.TestCase):
         connection = self._get_engine()
 
         c = FileInspector(
+            cfg_path=get_inipath(),
             file=os.path.join(
                 FILEPATH,
                 (f"{FileInspectorCsvTest.testfile['name']}."
@@ -374,12 +396,12 @@ class FileInspectorCsvTest(unittest.TestCase):
             con=connection
         )
 
-        c.get_file_ddl(path=FILEPATH,
-                       table_name=spec['name'],
-                       schema=spec['schema'],
-                       dtype=cust_types)
+        c.get_staging_ddl(path=FILEPATH,
+                          table_name=spec['name'],
+                          schema=spec['schema'],
+                          dtype=cust_types)
 
-        nfname = f"{spec['schema']}_{spec['name']}"
+        nfname = f"{spec['schema']}_{spec['table_prefix']}_{spec['name']}"
         full_path = f"{os.path.join(FILEPATH, nfname)}.sql"
 
         self.assertEqual(os.path.exists(full_path), True)
@@ -393,19 +415,19 @@ class FileInspectorCsvTest(unittest.TestCase):
             "A": {"db": "db1",
                   "schema": "schema1",
                   "table": "table1",
-                  "exp": "db1.schema1.table1"},
+                  "exp": "db1.schema1.STG_table1"},
             "B": {"db": None,
                   "schema": "schema1",
                   "table": "table1",
-                  "exp": "schema1.table1"},
+                  "exp": "schema1.STG_table1"},
             "C": {"db": None,
                   "schema": None,
                   "table": "table1",
-                  "exp": "table1"},
+                  "exp": "STAGING.STG_table1"},
             "D": {"db": "db1",
                   "schema": None,
                   "table": "table1",
-                  "exp": "db1.table1"},
+                  "exp": "db1.STAGING.STG_table1"},
             "E": {"db": "db1",
                   "schema": "schema1",
                   "table": None,
@@ -413,6 +435,7 @@ class FileInspectorCsvTest(unittest.TestCase):
         }
 
         c = FileInspector(
+            cfg_path=get_inipath(),
             file=os.path.join(
                 FILEPATH,
                 (f"{FileInspectorCsvTest.testfile['name']}."
@@ -427,11 +450,13 @@ class FileInspectorCsvTest(unittest.TestCase):
             exp = name_com[test_case]["exp"]
             if not table:
                 with self.assertRaises(NoTableNameGivenError):
-                    c._build_name(db=db,
+                    c._build_name(table_type="staging",
+                                  db=db,
                                   schema=schema,
                                   table=table)
             else:
                 self.assertEqual(c._build_name(
+                    table_type="staging",
                     db=db,
                     schema=schema,
                     table=table,
@@ -443,6 +468,7 @@ class FileInspectorCsvTest(unittest.TestCase):
         """
         connection = self._get_engine()
         c = FileInspector(
+            cfg_path=get_inipath(),
             file=os.path.join(
                 FILEPATH,
                 (f"{FileInspectorCsvTest.testfile['name']}."
@@ -478,6 +504,7 @@ class FileInspectorCsvTest(unittest.TestCase):
         connection = self._get_engine()
 
         c = FileInspector(
+            cfg_path=get_inipath(),
             file=os.path.join(
                 FILEPATH,
                 (f"{FileInspectorCsvTest.testfile['name']}."
@@ -503,11 +530,13 @@ class FileInspectorCsvTest(unittest.TestCase):
         """
         spec = {
             'name': "table1",
-            'schema': "HISTORY"
+            'schema': "HISTORY",
+            'table_prefix': "PER_STG",
         }
         connection = self._get_engine()
 
         c = FileInspector(
+            cfg_path=get_inipath(),
             file=os.path.join(
                 FILEPATH,
                 (f"{FileInspectorCsvTest.testfile['name']}."
@@ -521,7 +550,7 @@ class FileInspectorCsvTest(unittest.TestCase):
                           table_name=spec['name'],
                           schema=spec['schema'])
 
-        nfname = f"{spec['schema']}_{spec['name']}"
+        nfname = f"{spec['schema']}_{spec['table_prefix']}_{spec['name']}"
         full_path = f"{os.path.join(FILEPATH, nfname)}.sql"
 
         self.assertEqual(os.path.exists(full_path), True)
@@ -532,6 +561,7 @@ class FileInspectorCsvTest(unittest.TestCase):
         test if scd2 attributes can be add to the dataframe
         """
         c = FileInspector(
+            cfg_path=get_inipath(),
             file=os.path.join(
                 FILEPATH,
                 (f"{FileInspectorCsvTest.testfile['name']}."
@@ -567,6 +597,7 @@ class FileInspectorCsvTest(unittest.TestCase):
         connection = self._get_engine()
 
         c = FileInspector(
+            cfg_path=get_inipath(),
             file=os.path.join(
                 FILEPATH,
                 (f"{FileInspectorCsvTest.testfile['name']}."
@@ -613,16 +644,19 @@ class FileInspectorJsonTest(unittest.TestCase):
                  'Job': faker.job(),
                  'CreatedAt': faker.date_time()})
         cls.gen.create()
+        create_ini_file()
 
     @classmethod
     def tearDownClass(cls):
         cls.gen.rm()
+        rm_file(get_inipath())
 
     def test_show_columns(self):
         """
         test if columns
         """
         c = FileInspector(
+            cfg_path=get_inipath(),
             file=os.path.join(
                 FILEPATH,
                 (f"{FileInspectorJsonTest.testfile['name']}."
@@ -648,6 +682,7 @@ class FileInspectorJsonTest(unittest.TestCase):
         test if columns
         """
         c = FileInspector(
+            cfg_path=get_inipath(),
             file=os.path.join(
                 FILEPATH,
                 (f"{FileInspectorJsonTest.testfile['name']}."

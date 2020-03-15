@@ -14,18 +14,6 @@ logging.basicConfig(level=logging.INFO,
 log = logging.getLogger(__name__)
 
 
-CONFIG = {
-    "staging": {
-        "schema_name": "STAGING",
-        "table_prefix_name": "STG_"
-    },
-    "history": {
-        "schema_name": "HISTORY",
-        "table_prefix_name": "HIS_"
-    }
-}
-
-
 class FileInspector(object):
     """
     1. There is a source file with data in it
@@ -44,6 +32,7 @@ class FileInspector(object):
     :param con: Sqlalchemy database connection
     """
     def __init__(self,
+                 cfg_path: str,
                  file: str = None,
                  seperator: str = ',',
                  header: int = 0,
@@ -52,6 +41,7 @@ class FileInspector(object):
                  orient: str = 'records',
                  con=None
                  ):
+        self._cfg_path = cfg_path
         self._file = file
         self._seperator = seperator
         self._header = header
@@ -62,6 +52,8 @@ class FileInspector(object):
         self._his_data = None
         self._con = con
         self.config = Config()
+
+        self.load_config(cfg_path=self._cfg_path)
 
     def _has_header(self) -> bool:
         """
@@ -156,12 +148,12 @@ class FileInspector(object):
         self._file = Path(self._file)
         return self._file.is_file()
 
-    def get_file_ddl(self,
-                     path,
-                     table_name: str,
-                     schema: str = None,
-                     database: str = None,
-                     dtype=None) -> None:
+    def get_staging_ddl(self,
+                        path,
+                        table_name: str,
+                        schema: str = None,
+                        database: str = None,
+                        dtype=None) -> None:
         """
         Method that get the sql ddl statement and save it as a file
         in a target path
@@ -174,8 +166,6 @@ class FileInspector(object):
         Optional specifying the datatype for columns. The SQL type should
         be a SQLAlchemy type, or a string for sqlite3 fallback connection.
         """
-        if not schema:
-            schema = self.config.config['Staging']['schema_name']
         if self._data is None:
             self._read_data()
         try:
@@ -186,7 +176,8 @@ class FileInspector(object):
         try:
             qu_name = self._build_name(table=table_name,
                                        db=database,
-                                       schema=schema)
+                                       schema=schema,
+                                       table_type="staging")
             ddl = pd.io.sql.get_schema(frame=self._data,
                                        name=qu_name,
                                        con=self._con,
@@ -228,7 +219,8 @@ class FileInspector(object):
         try:
             qu_name = self._build_name(table=table_name,
                                        db=database,
-                                       schema=schema)
+                                       schema=schema,
+                                       table_type="history")
             ddl = pd.io.sql.get_schema(frame=self._his_data,
                                        name=qu_name,
                                        con=self._con,
@@ -258,23 +250,32 @@ class FileInspector(object):
 
     def _build_name(self,
                     table: str,
+                    table_type: str,
                     db: str = None,
                     schema: str = None
                     ) -> str:
         """
         Method that create the final qualified sql object name
         """
+        if table_type == 'staging':
+            t_pre = self.config.config['Staging']['table_prefix_name']
+            schema = schema or self.config.config['Staging']['schema_name']
+        elif table_type == 'history':
+            sec = 'PersistentStaging'
+            t_pre = self.config.config[sec]['table_prefix_name']
+            schema = schema or self.config.config[sec]['schema_name']
+
         if table is None:
             log.error(f"No table name given but needed. Please specify name:")
             raise NoTableNameGivenError
         if (db and schema):
-            return f"{db}.{schema}.{table}"
+            return f"{db}.{schema}.{t_pre}_{table}"
         elif (db and not schema):
-            return f"{db}.{table}"
+            return f"{db}.{t_pre}_{table}"
         elif (schema and not db):
-            return f"{schema}.{table}"
+            return f"{schema}.{t_pre}_{table}"
         elif (table and not schema and not db):
-            return f"{table}"
+            return f"{t_pre}_{table}"
 
     def _save_file(self,
                    path: str,

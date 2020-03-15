@@ -9,11 +9,11 @@ class IniGenerator(object):
         return textwrap.dedent("""\
         [Staging]
         schema_name=STAGING
-        table_prefix_name=STG_
+        table_prefix_name=STG
 
         [PersistentStaging]
         schema_name=PERS_STAGING
-        table_prefix_name=PERS_STG
+        table_prefix_name=PER_STG
         """)
 
     @staticmethod

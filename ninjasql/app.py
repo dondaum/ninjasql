@@ -194,7 +194,7 @@ class FileInspector(object):
     def get_history_ddl(self,
                         path,
                         table_name: str,
-                        schema: str,
+                        schema: str = None,
                         database: str = None,
                         dtype=None) -> None:
         """
@@ -341,4 +341,4 @@ class FileInspector(object):
 
 
 if __name__ == "__main__":
-    c = FileInspector(type="json", seperator='|')
+    pass

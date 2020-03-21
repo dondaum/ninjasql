@@ -1,27 +1,49 @@
+import networkx as nx
+
+
 class TableDep:
 
-    graph_dict = {}
+    def __init__(self):
+        self.graph = nx.DiGraph()
 
-    def addTable(self, node, neighbour):
-        if node not in self.graph_dict:
-            self.graph_dict[node] = [neighbour]
-        else:
-            self.graph_dict[node].append(neighbour)
+    def addTable(self, name, depends_on):
+        self.graph.add_edge(name, depends_on)
 
-    def find_path(self, start, end, path=None):
-        path = []
-        path = path + [start]
-        if start == end:
-            return path
-        for node in self.graph_dict[start]:
-            if node not in path:
-                newPath = self.find_path(node, end, path)
-                if newPath:
-                    return newPath
-                return None
+    def show_edges(self) -> list:
+        """
+        method that list all edges of the graph
+        """
+        return list(self.graph.edges())
 
-    def show_edges(self) -> tuple:
-        for node in self.graph_dict:
-            for neighbour in self.graph_dict[node]:
-                print("(", node, ", ", neighbour, ")")
-                return node, neighbour
+    def find_path(self) -> list:
+        """
+        method that returns path in topological Sorting
+        """
+        return list(reversed(list(nx.topological_sort(self.graph))))
+
+    def find_batch_path(self):
+        """
+        method that returns the topological Sorting with a batch
+        grouping of all tasks that can run at the same time
+        """
+        return list(self._create_batch_order())
+
+    def _create_batch_order(self):
+        """
+        method that create batches of nodes in order to run concurrent or
+        parallel task loads
+        """
+        inverse_graph = nx.DiGraph()
+        for name, depends_on in self.show_edges():
+            inverse_graph.add_edge(depends_on, name)
+        indegree_map = {v: d for v, d in inverse_graph.in_degree() if d > 0}
+        zero_indegree = [v for v, d in inverse_graph.in_degree() if d == 0]
+        while zero_indegree:
+            yield zero_indegree
+            new_zero_indegree = []
+            for v in zero_indegree:
+                for _, child in inverse_graph.edges(v):
+                    indegree_map[child] -= 1
+                    if not indegree_map[child]:
+                        new_zero_indegree.append(child)
+            zero_indegree = new_zero_indegree

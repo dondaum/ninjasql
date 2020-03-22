@@ -17,12 +17,13 @@ class TableDependencyTest(unittest.TestCase):
         """
         check if class exist
         """
-        self.assertIsNotNone(TableDep())
+        self.assertIsNotNone(TableDep.Instance())
 
     def test_add_table(self):
         first = "table1"
         second = "table2"
-        g = TableDep()
+        g = TableDep.Instance()
+        g.graph.clear()
         g.addTable(first, second)
         self.assertEqual(g.show_edges(), [(first, second)])
 
@@ -32,7 +33,8 @@ class TableDependencyTest(unittest.TestCase):
         third = "table3"
         fourth = "table4"
         exp_path = [first, third, second, fourth]
-        g = TableDep()
+        g = TableDep.Instance()
+        g.graph.clear()
         g.addTable(second, first)
         g.addTable(third, first)
         g.addTable(fourth, second)
@@ -41,7 +43,8 @@ class TableDependencyTest(unittest.TestCase):
     def test_find_batch_path(self):
         exp_path = [['table1'], ['table2', 'table3', 'table5'],
                     ['table6', 'table4']]
-        g = TableDep()
+        g = TableDep.Instance()
+        g.graph.clear()
         g.addTable(name="table2", depends_on="table1")
         g.addTable(name="table3", depends_on="table1")
         g.addTable(name="table5", depends_on="table1")

@@ -1,12 +1,33 @@
 import networkx as nx
+from typing import Iterator
 
 
-class TableDep:
+class Singleton:
+
+    def __init__(self, cls):
+        self._cls = cls
+
+    def Instance(self):
+        try:
+            return self._instance
+        except AttributeError:
+            self._instance = self._cls()
+            return self._instance
+
+    def __call__(self):
+        raise TypeError('Singletons must be accessed through `Instance()`.')
+
+    def __instancecheck__(self, inst):
+        return isinstance(inst, self._cls)
+
+
+@Singleton
+class TableDep(object):
 
     def __init__(self):
         self.graph = nx.DiGraph()
 
-    def addTable(self, name, depends_on):
+    def addTable(self, name: str, depends_on: str) -> None:
         self.graph.add_edge(name, depends_on)
 
     def show_edges(self) -> list:
@@ -21,14 +42,14 @@ class TableDep:
         """
         return list(reversed(list(nx.topological_sort(self.graph))))
 
-    def find_batch_path(self):
+    def find_batch_path(self) -> list:
         """
         method that returns the topological Sorting with a batch
         grouping of all tasks that can run at the same time
         """
         return list(self._create_batch_order())
 
-    def _create_batch_order(self):
+    def _create_batch_order(self) -> Iterator[list]:
         """
         method that create batches of nodes in order to run concurrent or
         parallel task loads

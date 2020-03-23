@@ -2,6 +2,11 @@ from pathlib import Path
 import os
 import logging
 import pandas as pd
+from pandas.io.sql import (
+    pandasSQL_builder,
+    SQLTable,
+    SQLDatabase,
+    SQLiteTable)
 from sqlalchemy.schema import CreateSchema
 from sqlalchemy import inspect
 from datetime import datetime
@@ -338,6 +343,40 @@ class FileInspector(object):
         except Exception as e:
             log.error(f"Can't create db table. Error: {e}")
             raise e
+
+    def create_file_elt_blueprint(self, path: str, table_name: str):
+        if self._data is None:
+            self._read_data()
+        self.get_staging_ddl(path=path, table_name=table_name)
+        self.get_history_ddl(path=path, table_name=table_name)
+
+    def _get_sqa_table(self,
+                       table_name: str,
+                       schema: str = None,
+                       database: str = None,
+                       dtype=None
+                       ) -> None:
+        """
+        Method that extracts sqa table object
+        """
+        if self._data is None:
+            self._read_data()
+        pandas_sql = pandasSQL_builder(con=self._con)
+
+        sqllite = False
+        if not isinstance(pandas_sql, SQLDatabase):
+            sqllite = True
+
+        pd_db = SQLDatabase(engine=self._con)
+        table_klass = SQLTable if not sqllite else SQLiteTable
+        table = table_klass(
+            name=table_name,
+            pandas_sql_engine=pd_db,
+            index=False,
+            frame=self._data
+        )
+        print(table._create_table_setup())
+        return table._create_table_setup()
 
 
 if __name__ == "__main__":

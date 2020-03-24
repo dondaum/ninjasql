@@ -375,7 +375,6 @@ class FileInspector(object):
             index=False,
             frame=self._data
         )
-        print(table._create_table_setup())
         return table._create_table_setup()
 
 

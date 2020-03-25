@@ -1,4 +1,9 @@
 from sqlalchemy.sql.schema import Table
+from sqlalchemy.sql import exists, and_, select
+from sqlalchemy.sql.functions import now
+from sqlalchemy.sql.expression import cast, literal_column, literal
+from sqlalchemy import DateTime
+from datetime import datetime
 
 
 class SqaExtractor(object):
@@ -30,6 +35,14 @@ class SqaExtractor(object):
         """
         return [c.name for c in self._staging_table.c]
 
+    def get_his_col_names(self):
+        """
+        method that returns all columns
+        COLUMN class has:
+        {'key': X, 'name': Y, 'table': T}
+        """
+        return [c.name for c in self._history_table.c]
+
     def get_table_name(self):
         """
         method that returns all columns
@@ -56,9 +69,40 @@ class SqaExtractor(object):
         {'key': X, 'name': Y, 'table': T}
         # https://social.msdn.microsoft.com/Forums/SECURITY/en-US/d3ed03bb-d1db-4559-b35c-a0635ae639ab/alternate-queries-for-merge?forum=transactsql
         # https://kite.com/python/docs/sqlalchemy.sql.Insert
+        # https://stackoverflow.com/questions/1849375/how-do-i-insert-into-t1-select-from-t2-in-sqlalchemy
+        # https://stackoverflow.com/questions/18501347/postgresql-insert-into-where-not-exists-using-sqlalchemys-insert-from-select
         """
-        sel = select([table1.c.a, table1.c.b]).where(table1.c.c > 5)
+        # sel = select([table1.c.a, table1.c.b]).where(table1.c.c > 5)
+        all_his_columns = self.get_his_col_names()
+        # add INSERT from staging
+        all_stg_columns = [getattr(self._staging_table.c, c) for
+                           c in self.get_col_names()]
+        p_now = datetime.now()
+        metadata = select(
+            [literal_column("1").label("ROW"),
+             now().label("UPDATED_AD"),
+             now().label("VALID_FROM_DATE"),
+             cast(literal_column("'9999-12-31'"), DateTime).label("VALID_TO_DATE")
+             ])
+        # dw_from_dt = select([cast(p_now, DateTime)])
+        all_stg_columns.append(metadata)
+        # all_stg_columns.append(dw_from_dt)
+
+        pk_columns = self._logical_pk
+        exist_stat = [getattr(self._staging_table.c, pk) for pk in pk_columns]
+        # todo: Check datatype if ifnull -1 or ''
+        filters = []
+        for pk_col in self._logical_pk:
+            filters.append(
+                getattr(self._staging_table.c, pk_col) ==
+                getattr(self._history_table.c, pk_col)
+            )
         stmt = (self._history_table.insert().
-                where(self._staging_table.c.id == 5).
-                values(number=20))
+                from_select(all_his_columns,
+                select(all_stg_columns).where(
+                    ~exists(exist_stat).where(and_(
+                        *filters)))))
+        # select().where(t2.c.y == 5)))
+        # where(self._staging_table.c.id == 5).
+        # values(number=20))
         return str(stmt.compile(self._con))

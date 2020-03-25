@@ -13,6 +13,7 @@ from datetime import datetime
 import traceback
 from ninjasql.errors import NoColumnsError, NoTableNameGivenError
 from ninjasql.settings import Config
+from ninjasql.db.sqa_dml_extractor import SqaExtractor
 
 logging.basicConfig(level=logging.INFO,
                     format='[%(asctime)s %(name)s %(levelname)s:%(message)s]')
@@ -344,14 +345,36 @@ class FileInspector(object):
             log.error(f"Can't create db table. Error: {e}")
             raise e
 
-    def create_file_elt_blueprint(self, path: str, table_name: str):
+    def create_file_elt_blueprint(self,
+                                  path: str,
+                                  table_name: str,
+                                  logical_pk: list
+                                  ):
         if self._data is None:
             self._read_data()
         self.get_staging_ddl(path=path, table_name=table_name)
         self.get_history_ddl(path=path, table_name=table_name)
+        stg = self._get_sqa_table(
+            table_name=table_name,
+            table_type="staging")
+        his = self._get_sqa_table(
+            table_name=table_name,
+            table_type="history")
+        c = SqaExtractor(
+            staging_table=stg,
+            history_table=his,
+            logical_pk=logical_pk,
+            con=self._con)
+
+        self._save_file(
+                path=path,
+                fname="etl1",
+                content=c.scd2_insert()
+        )
 
     def _get_sqa_table(self,
                        table_name: str,
+                       table_type: str,
                        schema: str = None,
                        database: str = None,
                        dtype=None
@@ -369,11 +392,14 @@ class FileInspector(object):
 
         pd_db = SQLDatabase(engine=self._con)
         table_klass = SQLTable if not sqllite else SQLiteTable
+        target_frame = (self._data if table_type == "staging"
+                        else self._his_data)
+        target_name = self._build_name(table=table_name, table_type=table_type)
         table = table_klass(
-            name=table_name,
+            name=target_name,
             pandas_sql_engine=pd_db,
             index=False,
-            frame=self._data
+            frame=target_frame
         )
         return table._create_table_setup()
 

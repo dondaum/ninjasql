@@ -619,46 +619,17 @@ class FileInspectorCsvTest(unittest.TestCase):
 
         self.assertIn(spec['name'], tables)
 
-    # def test_elt_tracking(self):
-    #     """
-    #     test if a complete loading track can be build:
-    #     -1 staging table
-    #     -1 history table
-    #     -database view
-    #     -dummy file -> staging load
-    #     """
-    #     spec = {
-    #         'name': "TABLE8",
-    #     }
-    #     connection = self._get_engine()
-
-    #     c = FileInspector(
-    #         cfg_path=get_inipath(),
-    #         file=os.path.join(
-    #             FILEPATH,
-    #             (f"{FileInspectorCsvTest.testfile['name']}."
-    #              f"{FileInspectorCsvTest.testfile['type']}")),
-    #         seperator="|",
-    #         type="csv",
-    #         con=connection
-    #     )
-
-    #     c.create_file_elt_blueprint(
-    #         path=FILEPATH,
-    #         table_name=spec['name']
-    #     )
-
-    #     # nfname = f"{spec['schema']}_{spec['table_prefix']}_{spec['name']}"
-    #     # full_path = f"{os.path.join(FILEPATH, nfname)}.sql"
-
-    #     self.assertEqual(True, False)
-
-    def test_get_sqa_table(self):
+    def test_elt_tracking(self):
         """
-        test if sqa table object can be extracted
+        test if a complete loading track can be build:
+        -1 staging table
+        -1 history table
+        -database view
+        -dummy file -> staging load
         """
         spec = {
             'name': "TABLE8",
+            'log_pks': ['Nam']
         }
         connection = self._get_engine()
 
@@ -672,7 +643,42 @@ class FileInspectorCsvTest(unittest.TestCase):
             type="csv",
             con=connection
         )
-        d = c._get_sqa_table(table_name=spec['name'])
+
+        c.create_file_elt_blueprint(
+            path=FILEPATH,
+            table_name=spec['name'],
+            logical_pk=spec['log_pks']
+        )
+
+        # nfname = f"{spec['schema']}_{spec['table_prefix']}_{spec['name']}"
+        # full_path = f"{os.path.join(FILEPATH, nfname)}.sql"
+
+        self.assertEqual(True, False)
+
+    def test_get_sqa_table(self):
+        """
+        test if sqa table object can be extracted
+        """
+        spec = {
+            'name': "TABLE8",
+            'table_type': "staging"
+        }
+        connection = self._get_engine()
+
+        c = FileInspector(
+            cfg_path=get_inipath(),
+            file=os.path.join(
+                FILEPATH,
+                (f"{FileInspectorCsvTest.testfile['name']}."
+                 f"{FileInspectorCsvTest.testfile['type']}")),
+            seperator="|",
+            type="csv",
+            con=connection
+        )
+        d = c._get_sqa_table(
+            table_name=spec['name'],
+            table_type=spec['table_type']
+        )
         self.assertEqual(type(d), Table)
 
 

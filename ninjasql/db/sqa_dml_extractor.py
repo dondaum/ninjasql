@@ -1,5 +1,5 @@
 from sqlalchemy.sql.schema import Table
-from sqlalchemy.sql import exists, and_, select
+from sqlalchemy.sql import exists, and_, select, func
 from sqlalchemy.sql.functions import now
 from sqlalchemy.sql.expression import cast, literal_column, literal
 from sqlalchemy import DateTime
@@ -43,6 +43,14 @@ class SqaExtractor(object):
         """
         return [c.name for c in self._history_table.c]
 
+    def get_source_col_names(self):
+        """
+        method returns all non technical or business related column names
+        """
+        return [i for i, j in zip(
+            self.get_his_col_names(),
+            self.get_col_names()) if i == j]
+
     def get_table_name(self):
         """
         method that returns all columns
@@ -51,18 +59,7 @@ class SqaExtractor(object):
         """
         return [c.table.name for c in self._staging_table.c][0]
 
-    def simple_insert(self):
-        """
-        method that returns all columns
-        COLUMN class has:
-        {'key': X, 'name': Y, 'table': T}
-        """
-        stmt = (self._staging_table.update().
-                where(self._staging_table.c.id == 5).
-                values(number=20))
-        return str(stmt.compile(self._con))
-
-    def scd2_insert(self):
+    def scd2_new_insert(self):
         """
         method that returns all columns
         COLUMN class has:
@@ -77,12 +74,13 @@ class SqaExtractor(object):
         # add INSERT from staging
         all_stg_columns = [getattr(self._staging_table.c, c) for
                            c in self.get_col_names()]
+        # func.date(p_now)
         p_now = datetime.now()
         metadata = select(
             [literal_column("1").label("ROW"),
              now().label("UPDATED_AD"),
              now().label("VALID_FROM_DATE"),
-             cast(literal_column("'9999-12-31'"), DateTime).label("VALID_TO_DATE")
+             func.date(literal_column("'9999-12-31'")).label("VALID_TO_DATE")
              ])
         # dw_from_dt = select([cast(p_now, DateTime)])
         all_stg_columns.append(metadata)
@@ -105,4 +103,19 @@ class SqaExtractor(object):
         # select().where(t2.c.y == 5)))
         # where(self._staging_table.c.id == 5).
         # values(number=20))
+        return str(stmt.compile(self._con))
+
+    def scd2_updated_insert(self):
+        """
+        scd2 command for all records where an update is needed
+        """
+        # https://stackoverflow.com/questions/23030321/sqlalchemy-update-from-select
+        bus_cols = []
+        for col in self.get_source_col_names():
+            bus_cols.append(
+                getattr(self._staging_table.c, col) ==
+                getattr(self._history_table.c, col)
+            )
+        stmt = (self._history_table.update().
+                values(bus_cols).where(1 == 1))
         return str(stmt.compile(self._con))

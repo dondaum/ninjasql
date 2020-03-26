@@ -369,7 +369,7 @@ class FileInspector(object):
         self._save_file(
                 path=path,
                 fname="etl1",
-                content=c.scd2_insert()
+                content=c.scd2_new_insert()
         )
 
     def _get_sqa_table(self,

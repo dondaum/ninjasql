@@ -73,6 +73,17 @@ class SqaExtractorTest(unittest.TestCase):
             con=get_engine()).get_col_names()
         self.assertEqual(col, self._columns())
 
+    def test_get_source_col_names(self):
+        """
+        test if all source columns can be extracted
+        """
+        col = SqaExtractor(
+            staging_table=self.staging_table,
+            history_table=self.history_table,
+            logical_pk=["id", "number"],
+            con=get_engine()).get_source_col_names()
+        self.assertEqual(col, self._columns())
+
     def test_get_table_name(self):
         """
         test if staging_table name can be extracted
@@ -84,18 +95,7 @@ class SqaExtractorTest(unittest.TestCase):
             con=get_engine()).get_table_name()
         self.assertEqual(tab, self._table_name())
 
-    def test_get_sql_insert(self):
-        """
-        test if sql insert command can be generated
-        """
-        ins = SqaExtractor(
-            staging_table=self.staging_table,
-            history_table=self.history_table,
-            logical_pk=["id", "number"],
-            con=get_engine()).simple_insert()
-        self.assertEqual(ins, "INSERT")
-
-    def test_get_sql_scd2_insert_cms(self):
+    def test_get_sql_scd2_new_insert_cms(self):
         """
         test if sql scd2 insert command can be generated
         """
@@ -103,6 +103,21 @@ class SqaExtractorTest(unittest.TestCase):
             staging_table=self.staging_table,
             history_table=self.history_table,
             logical_pk=["id", "number"],
-            con=get_engine()).scd2_insert()
+            con=get_engine()).scd2_new_insert()
 
+        self.assertIsInstance(ins, str)
+        self.assertIsNotNone(ins)
+
+    def test_get_sql_scd2_updated_ins_cms(self):
+        """
+        test if sql scd2 insert command can be generated
+        """
+        ins = SqaExtractor(
+            staging_table=self.staging_table,
+            history_table=self.history_table,
+            logical_pk=["id", "number"],
+            con=get_engine()).scd2_updated_insert()
+
+        self.assertIsInstance(ins, str)
+        self.assertIsNotNone(ins)
         self.assertEqual(ins, "INSERT")

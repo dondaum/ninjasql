@@ -372,6 +372,12 @@ class FileInspector(object):
                 content=c.scd2_new_insert()
         )
 
+        self._save_file(
+                path=path,
+                fname="etl2",
+                content=c.scd2_updated_insert()
+        )
+
     def _get_sqa_table(self,
                        table_name: str,
                        table_type: str,

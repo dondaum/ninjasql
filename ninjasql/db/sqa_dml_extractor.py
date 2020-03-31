@@ -1,8 +1,8 @@
 from sqlalchemy.sql.schema import Table
-from sqlalchemy.sql import exists, and_, select, func
+from sqlalchemy.sql import exists, and_, select, func, or_
 from sqlalchemy.sql.functions import now
 from sqlalchemy.sql.expression import cast, literal_column, literal
-from sqlalchemy import DateTime
+from sqlalchemy import DateTime, table, column
 from datetime import datetime
 
 
@@ -99,7 +99,8 @@ class SqaExtractor(object):
                 from_select(all_his_columns,
                 select(all_stg_columns).where(
                     ~exists(exist_stat).where(and_(
-                        *filters)))))
+                        *filters)))
+                        ))
         # select().where(t2.c.y == 5)))
         # where(self._staging_table.c.id == 5).
         # values(number=20))
@@ -116,6 +117,76 @@ class SqaExtractor(object):
                 getattr(self._staging_table.c, col) ==
                 getattr(self._history_table.c, col)
             )
-        stmt = (self._history_table.update().
-                values(bus_cols).where(1 == 1))
+        compare_columns = []
+        for col in self.get_source_col_names():
+            compare_columns.append(
+                getattr(self._staging_table.c, col) !=
+                getattr(self._history_table.c, col)
+            )
+
+        all_stg_columns = [getattr(self._staging_table.c, c) for
+                           c in self.get_col_names()]
+  
+        p_now = datetime.now()
+
+        # get join columns
+        pk_cols = []
+        for pk_col in self._logical_pk:
+            pk_cols.append(
+                getattr(self._staging_table.c, pk_col) ==
+                getattr(self._history_table.c, pk_col)
+            )
+
+        metadata_col = []
+        metadata_col.append(
+            select([literal_column("1").label("ROW")]).as_scalar()
+        )
+        metadata_col.append(
+            select([now().label("UPDATED_AD")]).as_scalar()
+        )
+        metadata_col.append(
+           select([now().label("VALID_FROM_DATE")]).as_scalar()
+        )
+        metadata_col.append(
+            select([func.date(
+                literal_column("'9999-12-31'")).label("VALID_TO_DATE")]).as_scalar()
+        )
+        # dw_from_dt = select([cast(p_now, DateTime)])
+        all_stg_columns.extend(metadata_col)
+
+        """
+        """
+        table1 = table('t1', column('a'), column('b'))
+        table2 = table('t2', column('a'), column('b'))
+        s1 = select([table1.c.a, table2.c.b]).\
+                    select_from(table1.join(table2,
+                                table1.c.a==table2.c.a))
+        """
+        """
+
+        join = self._history_table.join(self._staging_table,
+                                        and_(*pk_cols))
+        sel = (select(all_stg_columns).
+               select_from(self._history_table.join(
+                   self._staging_table,
+                   and_(*pk_cols))).where(
+                       or_(*compare_columns)))
+
+        se = select([self._history_table]).select_from(
+            self._history_table.join(self._staging_table,
+            1 == 1))
+
+        # s1 = select([table1.c.a, table2.c.b]).\
+        #      select_from(table1.join(table2,
+        #     table1.c.a==table2.c.a))
+
+        
+        stmt = (self._history_table.insert().
+                from_select(self.get_his_col_names(), sel))
+
+        # stmt = (self._history_table.update().
+        #         values(bus_cols).where(or_(
+        #            *compare_columns)
+        #         ))
         return str(stmt.compile(self._con))
+        # print(s1)

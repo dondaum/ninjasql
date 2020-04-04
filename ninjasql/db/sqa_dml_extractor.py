@@ -65,6 +65,7 @@ class SqaExtractor(object):
                 c in self.get_col_names()]
 
     def set_metadata_colums(self,
+                            batch_dt: str = None,
                             from_dt: str = None,
                             to_dt: str = None) -> list:
         """
@@ -72,16 +73,23 @@ class SqaExtractor(object):
         and updates as scalar selectable
         """
         to_dt = "'9999-12-31'"
+        valid_dt = "'2020-01-31'"
+        batch_dt = "'2020-02-01'"
         # from_dt = None
         metadata_col = []
         metadata_col.append(
             select([literal_column("1").label("ROW")]).as_scalar()
         )
         metadata_col.append(
-            select([now().label("UPDATED_AD")]).as_scalar()
+            select([now().label("UPDATED_AT")]).as_scalar()
         )
         metadata_col.append(
-           select([now().label("VALID_FROM_DATE")]).as_scalar()
+            select([func.date(
+                literal_column(batch_dt)).label("BATCH_RUN_AT")]).as_scalar()
+        )
+        metadata_col.append(
+           select([func.date(
+                literal_column(valid_dt)).label("VALID_FROM_DATE")]).as_scalar()
         )
         metadata_col.append(
             select([func.date(
@@ -135,7 +143,9 @@ class SqaExtractor(object):
 
     def scd2_updated_insert(self):
         """
-        scd2 command for all records where an update is needed
+        scd2 command for all records where an update is needed due to a
+        change record in a source table. Insert a new record for an existing
+        but changed dataset
         """
         # https://stackoverflow.com/questions/23030321/sqlalchemy-update-from-select
         bus_cols = []
@@ -158,11 +168,15 @@ class SqaExtractor(object):
 
         all_stg_columns.extend(self.set_metadata_colums())
 
+        to_dt = "'9999-12-31'"
+
         sel = (select(all_stg_columns).
                select_from(self._history_table.join(
                    self._staging_table,
                    and_(*pk_cols))).where(
-                       or_(*compare_columns)))
+                       or_(*compare_columns)).where(
+                           self._history_table.c.VALID_TO_DATE
+                           == func.date(literal_column(to_dt))))
 
         # s1 = select([table1.c.a, table2.c.b]).\
         #      select_from(table1.join(table2,
@@ -171,3 +185,96 @@ class SqaExtractor(object):
         stmt = (self._history_table.insert().
                 from_select(self.get_his_col_names(), sel))
         return str(stmt.compile(self._con))
+
+    def scd2_updated_update(self):
+        """
+        scd2 command for all records where an update is needed due to a change
+        in the source system. Set current latest record VALID_TO_DATE to 
+        current batch date
+        """
+        # https://stackoverflow.com/questions/23030321/sqlalchemy-update-from-select
+        bus_cols = []
+        for col in self.get_source_col_names():
+            bus_cols.append(
+                getattr(self._staging_table.c, col) ==
+                getattr(self._history_table.c, col)
+            )
+        compare_columns = []
+        for col in self.get_source_col_names():
+            compare_columns.append(
+                getattr(self._staging_table.c, col) !=
+                getattr(self._history_table.c, col)
+            )
+
+        to_dt = "'9999-12-31'"
+        batch_dt = "'2020-02-01'"
+        # from_dt = "'2020-01-31'"
+
+        exist_stat = [getattr(self._staging_table.c, pk)
+                      for pk in self._logical_pk]
+        filters = self.def_equal_pk_col()
+
+        upd = (self._history_table.update()
+               .values(
+                    VALID_TO_DATE=func.date(literal_column(batch_dt)),
+                    UPDATED_AT=now())
+                .where(
+                    exists(exist_stat)
+                    .where(and_(*filters))
+                    .where(
+                       or_(*compare_columns))
+                    .where(and_(
+                           self._history_table.c.VALID_TO_DATE
+                           == func.date(literal_column(to_dt)),
+                           self._history_table.c.BATCH_RUN_AT
+                           < func.date(literal_column(batch_dt)),
+                           ))
+                       ))
+        return str(upd.compile(self._con))
+
+    def scd2_deleted_update(self):
+        """
+        scd2 command for all records where an update is needed due to a change
+        in the source system. Set current latest record VALID_TO_DATE to 
+        current batch date
+        """
+        # https://stackoverflow.com/questions/23030321/sqlalchemy-update-from-select
+        bus_cols = []
+        for col in self.get_source_col_names():
+            bus_cols.append(
+                getattr(self._staging_table.c, col) ==
+                getattr(self._history_table.c, col)
+            )
+        compare_columns = []
+        for col in self.get_source_col_names():
+            compare_columns.append(
+                getattr(self._staging_table.c, col) !=
+                getattr(self._history_table.c, col)
+            )
+
+        pk_cols = []
+        for pk_col in self._logical_pk:
+            pk_cols.append(
+                getattr(self._history_table.c, pk_col) ==
+                getattr(self._staging_table.c, pk_col)
+            )
+
+        to_dt = "'9999-12-31'"
+        batch_dt = "'2020-02-01'"
+        # from_dt = "'2020-01-31'"
+
+        no_exist = [getattr(self._staging_table.c, pk)
+                    for pk in self._logical_pk]
+        filters = self.def_equal_pk_col()
+
+        upd = (self._history_table.update()
+               .values(
+                    VALID_TO_DATE=func.date(literal_column(batch_dt)),
+                    UPDATED_AT=now())
+                .where(and_(
+                    ~exists(no_exist),
+                    self._history_table.c.VALID_TO_DATE
+                    == func.date(literal_column(to_dt))))
+
+                )
+        return str(upd.compile(self._con))

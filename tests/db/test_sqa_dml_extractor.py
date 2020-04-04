@@ -42,6 +42,7 @@ class SqaExtractorTest(unittest.TestCase):
             Column('number', Integer),
             Column('ROW', Integer),
             Column('UPDATED_AT', DateTime),
+            Column('BATCH_RUN_AT', DateTime),
             Column('VALID_FROM_DATE', DateTime),
             Column('VALID_TO_DATE', DateTime))
 
@@ -165,3 +166,31 @@ class SqaExtractorTest(unittest.TestCase):
         self.assertIsInstance(ins, str)
         self.assertIsNotNone(ins)
         # self.assertEqual(ins, "INSERT")
+
+    def test_get_sql_scd2_updated_update_cms(self):
+        """
+        test if sql scd2 insert command can be generated
+        """
+        upd = SqaExtractor(
+            staging_table=self.staging_table,
+            history_table=self.history_table,
+            logical_pk=["id", "number"],
+            con=get_engine()).scd2_updated_update()
+
+        self.assertIsInstance(upd, str)
+        self.assertIsNotNone(upd)
+        # self.assertEqual(upd, "UPDATE")
+
+    def test_get_sql_scd2_deleted_update_cms(self):
+        """
+        test if sql scd2 insert command can be generated
+        """
+        upd = SqaExtractor(
+            staging_table=self.staging_table,
+            history_table=self.history_table,
+            logical_pk=["id", "number"],
+            con=get_engine()).scd2_deleted_update()
+
+        self.assertIsInstance(upd, str)
+        self.assertIsNotNone(upd)
+        self.assertEqual(upd, "UPDATE")

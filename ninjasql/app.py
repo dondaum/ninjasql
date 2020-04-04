@@ -251,6 +251,7 @@ class FileInspector(object):
         self._his_data = self._data.copy()
         self._his_data['ROW'] = pd.Int64Dtype()
         self._his_data['UPDATED_AT'] = pd.Timestamp(now_str)
+        self._his_data['BATCH_RUN_AT'] = pd.Timestamp(now_str)
         self._his_data['VALID_FROM_DATE'] = pd.Timestamp(now_str)
         self._his_data['VALID_TO_DATE'] = pd.Timestamp(now_str)
 
@@ -376,6 +377,18 @@ class FileInspector(object):
                 path=path,
                 fname="etl2",
                 content=c.scd2_updated_insert()
+        )
+
+        self._save_file(
+                path=path,
+                fname="etl3",
+                content=c.scd2_updated_update()
+        )
+
+        self._save_file(
+                path=path,
+                fname="etl4",
+                content=c.scd2_deleted_update()
         )
 
     def _get_sqa_table(self,

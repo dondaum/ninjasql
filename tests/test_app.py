@@ -647,7 +647,8 @@ class FileInspectorCsvTest(unittest.TestCase):
         c.create_file_elt_blueprint(
             path=FILEPATH,
             table_name=spec['name'],
-            logical_pk=spec['log_pks']
+            logical_pk=spec['log_pks'],
+            load_strategy='database_table'
         )
 
         # nfname = f"{spec['schema']}_{spec['table_prefix']}_{spec['name']}"

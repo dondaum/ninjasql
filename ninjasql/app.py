@@ -14,6 +14,7 @@ import traceback
 from ninjasql.errors import NoColumnsError, NoTableNameGivenError
 from ninjasql.settings import Config
 from ninjasql.db.sqa_dml_extractor import SqaExtractor
+from ninjasql.db.sqa_table_loads import get_sqa_tableload
 
 logging.basicConfig(level=logging.INFO,
                     format='[%(asctime)s %(name)s %(levelname)s:%(message)s]')
@@ -349,7 +350,8 @@ class FileInspector(object):
     def create_file_elt_blueprint(self,
                                   path: str,
                                   table_name: str,
-                                  logical_pk: list
+                                  logical_pk: list,
+                                  load_strategy: str,
                                   ):
         if self._data is None:
             self._read_data()
@@ -365,6 +367,7 @@ class FileInspector(object):
             staging_table=stg,
             history_table=his,
             logical_pk=logical_pk,
+            load_strategy=load_strategy,
             con=self._con)
 
         self._save_file(
@@ -390,6 +393,18 @@ class FileInspector(object):
                 fname="etl4",
                 content=c.scd2_deleted_update()
         )
+        if load_strategy == 'database_table':
+            self._save_file(
+                    path=path,
+                    fname="TABLELOAD",
+                    content=get_sqa_tableload(con=self._con)
+            )
+
+            self._save_file(
+                path=path,
+                fname="TABLE_LOAD_INSERT",
+                content=c.get_tableload_insert()
+            )
 
     def _get_sqa_table(self,
                        table_name: str,

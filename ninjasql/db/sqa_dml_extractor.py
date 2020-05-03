@@ -175,9 +175,6 @@ class SqaExtractor(object):
 
         metadata_col = []
         metadata_col.append(
-            select([literal_column("1").label("ROW")]).as_scalar()
-        )
-        metadata_col.append(
             select([now().label("UPDATED_AT")]).as_scalar()
         )
         metadata_col.append(batch_dt)

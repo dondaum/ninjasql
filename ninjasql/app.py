@@ -11,10 +11,12 @@ from sqlalchemy.schema import CreateSchema
 from sqlalchemy import inspect
 from datetime import datetime
 import traceback
+
 from ninjasql.errors import NoColumnsError, NoTableNameGivenError
 from ninjasql.settings import Config
 from ninjasql.db.sqa_dml_extractor import SqaExtractor
 from ninjasql.db.sqa_table_loads import get_sqa_tableload
+from ninjasql.dep.table_dependency import TableDep
 
 logging.basicConfig(level=logging.INFO,
                     format='[%(asctime)s %(name)s %(levelname)s:%(message)s]')
@@ -59,6 +61,7 @@ class FileInspector(object):
         self._his_data = None
         self._con = con
         self.config = Config()
+        self._Dag = TableDep.Instance()
 
         self.load_config(cfg_path=self._cfg_path)
 
@@ -193,7 +196,8 @@ class FileInspector(object):
             self._save_file(
                 path=tpath,
                 fname=qu_name,
-                content=ddl
+                content=ddl,
+                subdir='DDL'
             )
         except ValueError as e:
             log.error(f"{e}")
@@ -236,7 +240,8 @@ class FileInspector(object):
             self._save_file(
                 path=tpath,
                 fname=qu_name,
-                content=ddl
+                content=ddl,
+                subdir='DDL'
             )
         except ValueError as e:
             log.error(f"{e}")
@@ -250,7 +255,6 @@ class FileInspector(object):
         now = datetime.now()
         now_str = now.strftime("%Y-%m-%d %H:%M:%S")
         self._his_data = self._data.copy()
-        self._his_data['ROW'] = pd.Int64Dtype()
         self._his_data['UPDATED_AT'] = pd.Timestamp(now_str)
         self._his_data['BATCH_RUN_AT'] = pd.Timestamp(now_str)
         self._his_data['VALID_FROM_DATE'] = pd.Timestamp(now_str)
@@ -289,19 +293,29 @@ class FileInspector(object):
                    path: str,
                    fname: str,
                    content: str,
+                   subdir: str = None,
                    ) -> None:
         """
         method that save a string content to a given path.
         :param path: Directory path where file shall be saved
         :fname : Target filename
         :content: File content
+        :subdir: If a subdir is given the file is saved in the subdir
         """
         if not os.path.isdir(path):
             log.error(f"Given Path is not a valid directory. Please check!")
             raise FileNotFoundError
 
-        nfname = f"{fname.replace('.', '_')}.sql"
-        with open(os.path.join(path, nfname), "w") as f:
+        basename = f"{fname.replace('.', '_')}"
+        modelname = basename.split('_')[-1]
+        nfname = f"{basename}.sql"
+
+        if subdir:
+            modelname = os.path.join(modelname, subdir)
+
+        Path(os.path.join(path, modelname)).mkdir(parents=True, exist_ok=True)
+
+        with open(os.path.join(path, modelname, nfname), "w") as f:
             f.write(content)
 
     def create_db_table(self,
@@ -370,40 +384,54 @@ class FileInspector(object):
             load_strategy=load_strategy,
             con=self._con)
 
+        base_name = c.get_hist_table_name()
         self._save_file(
                 path=path,
-                fname="etl1",
-                content=c.scd2_new_insert()
+                fname=f"scd2_1_{base_name}",
+                content=c.scd2_new_insert(),
+                subdir='DML'
         )
 
         self._save_file(
                 path=path,
-                fname="etl2",
-                content=c.scd2_updated_insert()
+                fname=f"scd2_2_{base_name}",
+                content=c.scd2_updated_insert(),
+                subdir='DML'
         )
+        self._Dag.addTable(f"scd2_2_{base_name}.sql",
+                           f"scd2_1_{base_name}.sql")
 
         self._save_file(
                 path=path,
-                fname="etl3",
-                content=c.scd2_updated_update()
+                fname=f"scd2_3_{base_name}",
+                content=c.scd2_updated_update(),
+                subdir='DML'
         )
+
+        self._Dag.addTable(f"scd2_3_{base_name}.sql",
+                           f"scd2_2_{base_name}.sql")
 
         self._save_file(
                 path=path,
-                fname="etl4",
-                content=c.scd2_deleted_update()
+                fname=f"scd2_4_{base_name}",
+                content=c.scd2_deleted_update(),
+                subdir='DML'
         )
+        self._Dag.addTable(f"scd2_4_{base_name}.sql",
+                           f"scd2_3_{base_name}.sql")
         if load_strategy == 'database_table':
             self._save_file(
                     path=path,
-                    fname="TABLELOAD",
-                    content=get_sqa_tableload(con=self._con)
+                    fname="JOBTABLE_TABLELOAD",
+                    content=get_sqa_tableload(con=self._con),
+                    subdir='DDL'
             )
 
             self._save_file(
                 path=path,
-                fname="TABLE_LOAD_INSERT",
-                content=c.get_tableload_insert()
+                fname=f"{base_name}_INSERT_TABLELOAD",
+                content=c.get_tableload_insert(),
+                subdir='DML'
             )
 
     def _get_sqa_table(self,

@@ -7,11 +7,13 @@ class TableDependencyTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        pass
+        g = TableDep.Instance()
+        g.graph.clear()
 
     @classmethod
     def tearDownClass(cls):
-        pass
+        g = TableDep.Instance()
+        g.graph.clear()
 
     def test_check_klass(self):
         """

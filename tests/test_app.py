@@ -166,6 +166,14 @@ class FileInspectorCsvTest(unittest.TestCase):
             os.remove(path)
         except OSError:
             pass
+        try:
+            dirname = os.path.dirname(path)
+            parent = os.path.dirname(dirname)
+            os.rmdir(dirname)
+            if os.path.basename(parent) != 'landingzone':
+                os.rmdir(parent)
+        except OSError:
+            pass
 
     def test_show_columns(self):
         """
@@ -330,7 +338,9 @@ class FileInspectorCsvTest(unittest.TestCase):
                           schema=spec['schema'])
 
         nfname = f"{spec['schema']}_{spec['table_prefix']}_{spec['name']}"
-        full_path = f"{os.path.join(FILEPATH, nfname)}.sql"
+        modelname = nfname.split('_')[-1]
+        modelname = os.path.join(modelname, 'DDL')
+        full_path = f"{os.path.join(FILEPATH, modelname, nfname)}.sql"
 
         self.assertEqual(os.path.exists(full_path), True)
         self._rm(full_path)
@@ -362,7 +372,9 @@ class FileInspectorCsvTest(unittest.TestCase):
                           table_name=spec['name'])
 
         nfname = f"{spec['schema']}_{spec['table_prefix']}_{spec['name']}"
-        full_path = f"{os.path.join(FILEPATH, nfname)}.sql"
+        modelname = nfname.split('_')[-1]
+        modelname = os.path.join(modelname, 'DDL')
+        full_path = f"{os.path.join(FILEPATH, modelname, nfname)}.sql"
 
         self.assertEqual(os.path.exists(full_path), True)
         self._rm(full_path)
@@ -403,7 +415,9 @@ class FileInspectorCsvTest(unittest.TestCase):
                           dtype=cust_types)
 
         nfname = f"{spec['schema']}_{spec['table_prefix']}_{spec['name']}"
-        full_path = f"{os.path.join(FILEPATH, nfname)}.sql"
+        modelname = nfname.split('_')[-1]
+        modelname = os.path.join(modelname, 'DDL')
+        full_path = f"{os.path.join(FILEPATH, modelname, nfname)}.sql"
 
         self.assertEqual(os.path.exists(full_path), True)
         self._rm(full_path)
@@ -487,7 +501,8 @@ class FileInspectorCsvTest(unittest.TestCase):
                      content=cont)
 
         nfname = "db1_schema1_table1"
-        full_path = f"{os.path.join(FILEPATH, nfname)}.sql"
+        modelname = nfname.split('_')[-1]
+        full_path = f"{os.path.join(FILEPATH, modelname, nfname)}.sql"
 
         self.assertEqual(os.path.exists(full_path), True)
         self._rm(full_path)
@@ -552,7 +567,9 @@ class FileInspectorCsvTest(unittest.TestCase):
                           schema=spec['schema'])
 
         nfname = f"{spec['schema']}_{spec['table_prefix']}_{spec['name']}"
-        full_path = f"{os.path.join(FILEPATH, nfname)}.sql"
+        modelname = nfname.split('_')[-1]
+        modelname = os.path.join(modelname, 'DDL')
+        full_path = f"{os.path.join(FILEPATH, modelname, nfname)}.sql"
 
         self.assertEqual(os.path.exists(full_path), True)
         self._rm(full_path)
@@ -572,7 +589,6 @@ class FileInspectorCsvTest(unittest.TestCase):
         )
 
         cols = [
-            "ROW",
             "UPDATED_AT",
             "VALID_FROM_DATE",
             "VALID_TO_DATE",
@@ -624,7 +640,6 @@ class FileInspectorCsvTest(unittest.TestCase):
         test if a complete loading track can be build:
         -1 staging table
         -1 history table
-        -database view
         -dummy file -> staging load
         """
         spec = {
@@ -651,10 +666,20 @@ class FileInspectorCsvTest(unittest.TestCase):
             load_strategy='database_table'
         )
 
-        # nfname = f"{spec['schema']}_{spec['table_prefix']}_{spec['name']}"
-        # full_path = f"{os.path.join(FILEPATH, nfname)}.sql"
-
-        self.assertEqual(True, False)
+        models = [spec['name'], 'TABLELOAD']
+        subdirs = ['DDL', 'DML']
+        for mod in models:
+            full_path = os.path.join(FILEPATH, mod)
+            for dir in subdirs:
+                if len(os.listdir(os.path.join(full_path, dir))) == 0:
+                    check = False
+                else:
+                    check = True
+                self.assertEqual(check, True)
+            for dir in subdirs:
+                for f in os.listdir(os.path.join(full_path, dir)):
+                    fpath = os.path.join(full_path, dir, f)
+                    self._rm(fpath)
 
     def test_get_sqa_table(self):
         """

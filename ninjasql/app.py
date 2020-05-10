@@ -2,6 +2,7 @@ from pathlib import Path
 import os
 import logging
 import pandas as pd
+from pandas import DataFrame
 from pandas.io.sql import (
     pandasSQL_builder,
     SQLTable,
@@ -104,39 +105,59 @@ class FileInspector(object):
         if not self._is_file():
             log.error(f"Can't find the a file. Check file path!")
         if self._type == 'csv':
-            if not self._has_header():
-                self._columns = None
-            try:
-                self._data = pd.read_csv(filepath_or_buffer=self._file,
-                                         sep=self._seperator,
-                                         header=self._header,
-                                         names=self._columns)
-            except Exception:
-                track = traceback.format_exc()
-                log.error(f"Upps. Check file and location. Error: {track}")
+            self._csv_reader()
         elif self._type == 'json':
-            try:
-                self._data = pd.read_json(
-                    path_or_buf=self._file,
-                    orient=self._orient)
-            except Exception:
-                track = traceback.format_exc()
-                log.error(f"Upps. Check file and location. Error: {track}")
+            self._json_reader()
+
+    def _build_header(self) -> None:
+        """
+        Instance method that implements a correct header
+        TODO: This method has side effects
+        """
+        if not self._has_header():
+            self._columns = None
+
+    def _csv_reader(self) -> None:
+        """
+        Instance method that implements a csv reader
+        TODO: This method has side effects
+        """
+        self._build_header()
+        try:
+            self._data = pd.read_csv(
+                filepath_or_buffer=self._file,
+                sep=self._seperator,
+                header=self._header,
+                names=self._columns)
+        except Exception:
+            track = traceback.format_exc()
+            log.error(f"Upps. Check file and location. Error: {track}")
+
+    def _json_reader(self):
+        """
+        Instance method that implements a json reader
+        """
+        self._build_header()
+        try:
+            self._data = pd.read_json(
+                path_or_buf=self._file,
+                orient=self._orient)
+        except Exception:
+            track = traceback.format_exc()
+            log.error(f"Upps. Check file and location. Error: {track}")
 
     def show_columns(self) -> list:
         """
         Method that shows all columns of a provided dataset
         """
-        if not self._data:
-            self._read_data()
+        self._load_df_if_empty()
         return self._data.columns
 
     def get_dtypes(self) -> dict:
         """
         Method that get columns datatype as dict
         """
-        if self._data is None:
-            self._read_data()
+        self._load_df_if_empty()
         if not self._has_header():
             log.error("Column datatypes are asked but no columns are "
                       "specified or given in a file.")
@@ -147,8 +168,7 @@ class FileInspector(object):
         """
         Method that change all column data type to a string type
         """
-        if self._data is None:
-            self._read_data()
+        self._load_df_if_empty()
         self._data = self._data.astype(str)
 
     def _is_file(self) -> bool:
@@ -158,12 +178,32 @@ class FileInspector(object):
         self._file = Path(self._file)
         return self._file.is_file()
 
-    def get_staging_ddl(self,
-                        path,
-                        table_name: str,
-                        schema: str = None,
-                        database: str = None,
-                        dtype=None) -> None:
+    def _load_df_if_empty(self) -> None:
+        """
+        Instance method that loads data in a pandas df
+        if not already done.
+        TODO: This method has side effects
+        """
+        if self._data is None:
+            self._read_data()
+
+    def _set_path(self, path: str) -> Path:
+        """
+        Instance method that converts a str to a Path object
+        """
+        try:
+            tpath = Path(path)
+            return tpath
+        except Exception as e:
+            log.error(f"Please provide a valid path. Error: {e}")
+            raise e
+
+    def save_staging_ddl(self,
+                         path,
+                         table_name: str,
+                         schema: str = None,
+                         database: str = None,
+                         dtype=None) -> None:
         """
         Method that get the sql ddl statement and save it as a file
         in a target path
@@ -176,23 +216,21 @@ class FileInspector(object):
         Optional specifying the datatype for columns. The SQL type should
         be a SQLAlchemy type, or a string for sqlite3 fallback connection.
         """
-        if self._data is None:
-            self._read_data()
+        self._load_df_if_empty()
+        tpath = self._set_path(path=path)
+
         try:
-            tpath = Path(path)
-        except Exception as e:
-            log.error(f"Please provide a valid path. Error: {e}")
-            raise e
-        try:
-            qu_name = self._build_name(table=table_name,
-                                       db=database,
-                                       schema=schema,
-                                       table_type="staging")
-            ddl = pd.io.sql.get_schema(frame=self._data,
-                                       name=qu_name,
-                                       con=self._con,
-                                       dtype=dtype
-                                       )
+            qu_name = self._build_name(
+                table=table_name,
+                db=database,
+                schema=schema,
+                table_type="staging"
+            )
+            ddl = self._extract_ddl(
+                frame=self._data,
+                name=qu_name,
+                dtype=dtype
+            )
             self._save_file(
                 path=tpath,
                 fname=qu_name,
@@ -202,12 +240,25 @@ class FileInspector(object):
         except ValueError as e:
             log.error(f"{e}")
 
-    def get_history_ddl(self,
-                        path,
-                        table_name: str,
-                        schema: str = None,
-                        database: str = None,
-                        dtype=None) -> None:
+    def _extract_ddl(self,
+                     frame: DataFrame,
+                     name: str,
+                     dtype: dict) -> str:
+        """
+        Instance method that extracts the ddl statement of the
+        pandals sql core module
+        """
+        return pd.io.sql.get_schema(frame=frame,
+                                    name=name,
+                                    con=self._con,
+                                    dtype=dtype)
+
+    def save_history_ddl(self,
+                         path,
+                         table_name: str,
+                         schema: str = None,
+                         database: str = None,
+                         dtype=None) -> None:
         """
         Method that get the sql history ddl statement and save it as a file
         in a target path
@@ -219,24 +270,21 @@ class FileInspector(object):
         Optional specifying the datatype for columns. The SQL type should
         be a SQLAlchemy type, or a string for sqlite3 fallback connection.
         """
-        if self._data is None:
-            self._read_data()
-        try:
-            tpath = Path(path)
-        except Exception as e:
-            log.error(f"Please provide a valid path. Error: {e}")
-            raise e
+        self._load_df_if_empty()
+        tpath = self._set_path(path=path)
+
         self._add_scd2_attributes()
         try:
             qu_name = self._build_name(table=table_name,
                                        db=database,
                                        schema=schema,
                                        table_type="history")
-            ddl = pd.io.sql.get_schema(frame=self._his_data,
-                                       name=qu_name,
-                                       con=self._con,
-                                       dtype=dtype
-                                       )
+            ddl = self._extract_ddl(
+                frame=self._his_data,
+                name=qu_name,
+                dtype=dtype
+            )
+
             self._save_file(
                 path=tpath,
                 fname=qu_name,
@@ -250,8 +298,7 @@ class FileInspector(object):
         """
         Instance method that add scd2 relevant attributes
         """
-        if self._data is None:
-            self._read_data()
+        self._load_df_if_empty()
         now = datetime.now()
         now_str = now.strftime("%Y-%m-%d %H:%M:%S")
         self._his_data = self._data.copy()
@@ -337,8 +384,7 @@ class FileInspector(object):
         :type : str {'staging', 'history'}. Determine if the staging or
         history table shall be created
         """
-        if self._data is None:
-            self._read_data()
+        self._load_df_if_empty()
         if schema:
             insp = inspect(self._con)
             schemas = insp.get_schema_names()
@@ -367,10 +413,9 @@ class FileInspector(object):
                                   logical_pk: list,
                                   load_strategy: str,
                                   ):
-        if self._data is None:
-            self._read_data()
-        self.get_staging_ddl(path=path, table_name=table_name)
-        self.get_history_ddl(path=path, table_name=table_name)
+        self._load_df_if_empty()
+        self.save_staging_ddl(path=path, table_name=table_name)
+        self.save_history_ddl(path=path, table_name=table_name)
         stg = self._get_sqa_table(
             table_name=table_name,
             table_type="staging")
@@ -444,8 +489,7 @@ class FileInspector(object):
         """
         Method that extracts sqa table object
         """
-        if self._data is None:
-            self._read_data()
+        self._load_df_if_empty()
         pandas_sql = pandasSQL_builder(con=self._con)
 
         sqllite = False

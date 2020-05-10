@@ -1,0 +1,2 @@
+class HistoryTable(object):
+    pass

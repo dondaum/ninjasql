@@ -226,6 +226,27 @@ class FileInspectorCsvTest(unittest.TestCase):
 
         self.assertEqual(sorted(exp_col), sorted(dtype_key_list))
 
+    def test_load_df_if_empty(self):
+        """
+        test if a empty df get's loaded
+        """
+        c = FileInspector(
+            cfg_path=get_inipath(),
+            file=os.path.join(
+                FILEPATH,
+                (f"{FileInspectorCsvTest.testfile['name']}."
+                 f"{FileInspectorCsvTest.testfile['type']}")),
+            seperator="|",
+            type="csv"
+        )
+
+        empty = c._data
+        c._load_df_if_empty()
+        loaded = c._data
+
+        self.assertIsNone(empty)
+        self.assertIsNotNone(loaded)
+
     def test_get_dtypes_no_header(self):
         """
         test if dtypes without header can be returned
@@ -333,9 +354,9 @@ class FileInspectorCsvTest(unittest.TestCase):
             con=connection
         )
 
-        c.get_staging_ddl(path=FILEPATH,
-                          table_name=spec['name'],
-                          schema=spec['schema'])
+        c.save_staging_ddl(path=FILEPATH,
+                           table_name=spec['name'],
+                           schema=spec['schema'])
 
         nfname = f"{spec['schema']}_{spec['table_prefix']}_{spec['name']}"
         modelname = nfname.split('_')[-1]
@@ -368,8 +389,8 @@ class FileInspectorCsvTest(unittest.TestCase):
             con=connection
         )
 
-        c.get_staging_ddl(path=FILEPATH,
-                          table_name=spec['name'])
+        c.save_staging_ddl(path=FILEPATH,
+                           table_name=spec['name'])
 
         nfname = f"{spec['schema']}_{spec['table_prefix']}_{spec['name']}"
         modelname = nfname.split('_')[-1]
@@ -409,10 +430,10 @@ class FileInspectorCsvTest(unittest.TestCase):
             con=connection
         )
 
-        c.get_staging_ddl(path=FILEPATH,
-                          table_name=spec['name'],
-                          schema=spec['schema'],
-                          dtype=cust_types)
+        c.save_staging_ddl(path=FILEPATH,
+                           table_name=spec['name'],
+                           schema=spec['schema'],
+                           dtype=cust_types)
 
         nfname = f"{spec['schema']}_{spec['table_prefix']}_{spec['name']}"
         modelname = nfname.split('_')[-1]
@@ -562,9 +583,9 @@ class FileInspectorCsvTest(unittest.TestCase):
             con=connection
         )
 
-        c.get_history_ddl(path=FILEPATH,
-                          table_name=spec['name'],
-                          schema=spec['schema'])
+        c.save_history_ddl(path=FILEPATH,
+                           table_name=spec['name'],
+                           schema=spec['schema'])
 
         nfname = f"{spec['schema']}_{spec['table_prefix']}_{spec['name']}"
         modelname = nfname.split('_')[-1]

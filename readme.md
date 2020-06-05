@@ -15,6 +15,14 @@ extraction but furhter on creating a complete SQL DDL template for a staging, a
 historization and SQL DML statements for implemention and scd2 database historization.
 
 ## How to use?
+
+Install ninjasql with:
+
+```
+pip install ninjasql
+```
+
+
 ### Create a ini file
 Create a ini file somewhere on your machine. You have to define the options
 - Staging
@@ -64,6 +72,7 @@ In order to create a instance of the main class you have to specify
 - sqlalchemy engine
 
 ```python
+from ninjasql.app import FileInspector
 
 c = FileInspector(
     cfg_path="/Users/JohnDoe/Developement/python_pipeline/ninjasql/test.ini",

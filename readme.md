@@ -72,6 +72,7 @@ In order to create a instance of the main class you have to specify
 - sqlalchemy engine
 
 ```python
+from ninjasql.app import FileInspector
 
 c = FileInspector(
     cfg_path="/Users/JohnDoe/Developement/python_pipeline/ninjasql/test.ini",
